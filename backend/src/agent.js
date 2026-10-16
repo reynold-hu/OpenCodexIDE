@@ -7,6 +7,7 @@ import { shellExec, writeFileInWorkspace, gitStatus, tree, readFileLimited, ensu
 import { workspacePath, save } from "./store.js";
 import { chatStream, AGENT_TOOLS } from "./llm.js";
 import { effectiveProvider, isRealProvider } from "./providers.js";
+import { startProcess } from "./procs.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -372,8 +373,53 @@ Rules:
 - Start non-trivial tasks with the update_plan tool, and keep it updated as steps finish.
 - Use read_file / run_command to inspect before editing. Use write_file to create or fully rewrite files (showing the diff is automatic).
 - Keep shell commands short and non-interactive. Never print secrets.
+- For dev servers or anything long-running use run_background, never block run_command with "&" style servers.
+- When you consult or mention an external website/repo/doc, record it with add_source so the user sees it in 来源.
+- For broad exploration ("what is this repo", research across many files), delegate to run_subagent to keep your context lean.
 - When done, reply with a concise markdown summary of what you changed and how to verify it.
 - Do not wrap your final answer in code fences.`;
+
+const SUB_SYSTEM_PROMPT = (dir) => `You are a research subagent inside OpenCodex IDE. Workspace: ${dir}.
+Inspect with read-only tools (run_command for ls/cat/git log, read_file). Do not modify files.
+Finish with a concise factual summary (max 300 words) of what you found.`;
+
+async function runSubAgent(provider, dir, task) {
+  const subTools = AGENT_TOOLS.filter((t) => ["run_command", "read_file"].includes(t.function.name));
+  const messages = [
+    { role: "system", content: SUB_SYSTEM_PROMPT(dir) },
+    { role: "user", content: task },
+  ];
+  for (let i = 0; i < 3; i++) {
+    const r = await chatStream({ baseUrl: provider.baseUrl, apiKey: provider.apiKey, model: provider.model, messages, tools: subTools });
+    messages.push({
+      role: "assistant",
+      content: r.content || null,
+      ...(r.toolCalls.length
+        ? { tool_calls: r.toolCalls.map((t, j) => ({ id: t.id || `sub${i}_${j}`, type: "function", function: { name: t.name, arguments: t.args } })) }
+        : {}),
+    });
+    if (!r.toolCalls.length) return r.content || "(no summary)";
+    for (const tc of r.toolCalls) {
+      let args = {};
+      try {
+        args = JSON.parse(tc.args || "{}");
+      } catch {}
+      let out;
+      if (tc.name === "run_command") {
+        const r2 = await shellExec(dir, String(args.command || "ls").slice(0, 500), 15000);
+        out = `exit ${r2.code}\n${(r2.stdout + r2.stderr).slice(0, 8000)}`;
+      } else {
+        try {
+          out = readFileLimited(dir, String(args.path || "")).content.slice(0, 12000);
+        } catch (e) {
+          out = `error: ${e.message}`;
+        }
+      }
+      messages.push({ role: "tool", tool_call_id: tc.id || "", name: tc.name, content: out });
+    }
+  }
+  return "(subagent reached step limit)";
+}
 
 async function streamLLMAgentMessage(state, thread) {
   const id = uid("agent_message");
@@ -463,6 +509,35 @@ async function runTurnReal(state, thread, prompt, provider) {
         } catch (e) {
           return `read error: ${e.message}`;
         }
+      }
+      case "run_background": {
+        const cmd = String(args.command || "").slice(0, 1000);
+        if (!cmd) return "empty command";
+        const rec = startProcess(dir, cmd);
+        pushEvent(state, thread, { type: "process", id: rec.id, cmd: rec.cmd, pid: rec.pid, ts: Date.now() });
+        return `background process started (id ${rec.id}, pid ${rec.pid})`;
+      }
+      case "add_source": {
+        const url = String(args.url || "").slice(0, 500);
+        if (!url) return "empty url";
+        pushEvent(state, thread, { type: "source", url, title: String(args.title || "").slice(0, 120), ts: Date.now() });
+        return "source recorded";
+      }
+      case "run_subagent": {
+        const task = String(args.prompt || "").slice(0, 2000);
+        if (!task) return "empty task";
+        const id = uid("sub");
+        pushEvent(state, thread, { type: "subagent", id, prompt: task.slice(0, 200), done: false, ts: Date.now() });
+        let summary;
+        try {
+          summary = await runSubAgent(provider, dir, task);
+        } catch (e) {
+          summary = `subagent failed: ${e.message}`;
+        }
+        const ev = thread.events.find((e) => e.id === id);
+        if (ev) ev.done = true;
+        bus.broadcast(thread.id, { type: "subagent_update", id, done: true });
+        return String(summary).slice(0, 4000);
       }
       default:
         return `unknown tool ${tc.name}`;
@@ -571,6 +646,8 @@ export async function runTurn(state, thread, prompt) {
   } else if (task === "create") {
     setPlan(0, true);
     await runCommand(state, thread, "ls");
+    const subId = uid("sub");
+    pushEvent(state, thread, { type: "subagent", id: subId, prompt: `调研任务:${prompt.slice(0, 60)}`, done: true, ts: Date.now() });
     setPlan(1, true);
     await sleep(400);
     const gen = genCodeForPrompt(prompt);

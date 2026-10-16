@@ -33,5 +33,11 @@ export const api = {
   saveFile: (projectId: string, path: string, content: string) => fetch(`/api/projects/${projectId}/file`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path, content }) }).then(j<{ ok: boolean }>),
   commit: (projectId: string, message: string) => fetch(`/api/projects/${projectId}/commit`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message }) }).then(j<{ ok: boolean }>),
   terminal: (projectId: string, cmd: string) => fetch(`/api/projects/${projectId}/terminal`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cmd }) }).then(j<{ code: number; stdout: string; stderr: string }>),
+  processes: (projectId: string) => fetch(`/api/projects/${projectId}/processes`).then(j<{ id: string; cmd: string; pid: number; startedAt: number; running: boolean }[]>),
+  startProcess: (projectId: string, cmd: string) => fetch(`/api/projects/${projectId}/processes`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cmd }) }).then(j<{ id: string }>),
+  stopProcess: (projectId: string, pid: string) => fetch(`/api/projects/${projectId}/processes/${pid}/stop`, { method: "POST" }).then(j<{ ok: boolean }>),
+  procLog: (projectId: string, pid: string) => fetch(`/api/projects/${projectId}/processes/${pid}/log`).then(j<{ log: string }>),
+  outputs: () => fetch("/api/outputs").then(j<{ kind: "file" | "site"; path: string; url?: string; ts: number; thread: string; threadId: string }[]>),
+  addSource: (threadId: string, url: string, title?: string) => fetch(`/api/threads/${threadId}/source`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url, title }) }).then(j<{ ok: boolean }>),
   streamUrl: (threadId: string) => `/api/threads/${threadId}/stream`,
 };

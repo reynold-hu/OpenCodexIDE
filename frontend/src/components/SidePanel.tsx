@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import type { Project } from "../types";
 import { IconX, IconFile, IconFolder } from "../icons";
+import { Browser } from "./Browser";
 
-type Tab = "review" | "files" | "terminal" | "preview" | "canvas";
+type Tab = "review" | "files" | "terminal" | "browser" | "canvas";
 
 export function SidePanel({
   project,
@@ -12,6 +13,8 @@ export function SidePanel({
   preview,
   canvasPath,
   onOpenCanvas,
+  tabRequest,
+  onOpenToolFromBrowser,
 }: {
   project: Project;
   onClose: () => void;
@@ -19,16 +22,26 @@ export function SidePanel({
   preview: { url: string; path: string } | null;
   canvasPath: string | null;
   onOpenCanvas: (p: string | null) => void;
+  tabRequest: { tab: Tab; nonce: number };
+  onOpenToolFromBrowser: (tab: "files" | "terminal") => void;
 }) {
   const [tab, setTab] = useState<Tab>("review");
+  const [browserNonce, setBrowserNonce] = useState(0);
   const [canvas, setCanvas] = useState<{ path: string; content: string } | null>(null);
   const [saved, setSaved] = useState("");
   const [previewKey, setPreviewKey] = useState(0);
   (window as any).__ocxProjectId = project.id;
 
   useEffect(() => {
-    if (preview) setTab("preview");
+    if (preview) {
+      setTab("browser");
+      setBrowserNonce((n) => n + 1);
+    }
   }, [preview]);
+
+  useEffect(() => {
+    if (tabRequest.nonce) setTab(tabRequest.tab);
+  }, [tabRequest.nonce]);
   useEffect(() => {
     if (canvasPath) {
       setTab("canvas");
@@ -89,9 +102,9 @@ export function SidePanel({
   return (
     <aside className="side-panel">
       <div className="sp-tabs">
-        {(["review", "files", "terminal", "preview", "canvas"] as Tab[]).map((t) => (
+        {(["review", "files", "terminal", "browser", "canvas"] as Tab[]).map((t) => (
           <button key={t} className={`sp-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-            {t === "review" ? "Review" : t === "files" ? "Files" : t === "terminal" ? "Terminal" : t === "preview" ? "预览" : "画布"}
+            {t === "review" ? "Review" : t === "files" ? "Files" : t === "terminal" ? "Terminal" : t === "browser" ? "浏览器" : "画布"}
           </button>
         ))}
         <span className="grow" />
@@ -210,19 +223,15 @@ export function SidePanel({
             </div>
           </>
         )}
-        {tab === "preview" && (
-          preview ? (
-            <div className="preview-frame-wrap">
-              <div className="preview-urlbar">
-                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{preview.url}</span>
-                <button className="btn" style={{ padding: "3px 8px" }} onClick={() => window.open(preview.url, "_blank")}>新窗口</button>
-                <button className="btn" style={{ padding: "3px 8px" }} onClick={() => setPreviewKey((k) => k + 1)}>刷新</button>
-              </div>
-              <iframe key={previewKey} className="preview-frame" src={preview.url} title="preview" sandbox="allow-scripts allow-same-origin" />
-            </div>
-          ) : (
-            <div className="sp-empty">让 Codex 生成网页后，预览会出现在这里。</div>
-          )
+        {tab === "browser" && (
+          <div className="sp-browser">
+            <Browser
+              initialUrl={preview?.url || null}
+              initialNonce={browserNonce}
+              onOpenTool={(t) => onOpenToolFromBrowser(t)}
+              onOpenFile={(path) => onOpenCanvas(path)}
+            />
+          </div>
         )}
 
         {tab === "canvas" && (

@@ -97,6 +97,9 @@ export type Block =
   | ({ kind: "file_change" } & FileChangeItem)
   | { kind: "file_group"; items: FileChangeItem[] }
   | { kind: "preview"; path: string; url: string }
+  | { kind: "process"; id: string; cmd: string; pid: number }
+  | { kind: "source"; url: string; title?: string }
+  | { kind: "subagent"; id: string; prompt: string; done: boolean }
   | { kind: "turn_complete" }
   | { kind: "error"; message: string };
 

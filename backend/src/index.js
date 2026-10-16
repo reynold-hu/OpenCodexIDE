@@ -9,6 +9,7 @@ import { runTurn, bus } from "./agent.js";
 import { ensureWorkspace, tree, readFileLimited, writeFileInWorkspace, gitStatus, gitDiff, gitCommitAll, shellExec, revertPath } from "./workfs.js";
 import { PROVIDER_PRESETS, providerRuntime, effectiveProvider, sanitizeSettings, mergeProviderConfig } from "./providers.js";
 import { listRemoteModels } from "./llm.js";
+import { startProcess, listProcesses, stopProcess, tailLog } from "./procs.js";
 
 const app = express();
 const PORT = process.env.PORT || 8787;
@@ -402,6 +403,52 @@ app.post("/api/projects/:id/screenshot", async (req, res) => {
   });
 });
 app.use("/shots", express.static(SHOTS_DIR));
+
+// ---------- background processes ----------
+app.get("/api/projects/:id/processes", (req, res) => {
+  if (!projectDir(req, res)) return;
+  res.json(listProcesses());
+});
+app.post("/api/projects/:id/processes", (req, res) => {
+  const dir = projectDir(req, res);
+  if (!dir) return;
+  const cmd = String(req.body?.cmd || "").trim();
+  if (!cmd) return res.status(400).json({ error: "empty command" });
+  const rec = startProcess(dir, cmd);
+  res.json({ id: rec.id, cmd: rec.cmd, pid: rec.pid, startedAt: rec.startedAt, running: true });
+});
+app.post("/api/projects/:id/processes/:pid/stop", (req, res) => {
+  if (!projectDir(req, res)) return;
+  res.json({ ok: stopProcess(req.params.pid) });
+});
+app.get("/api/projects/:id/processes/:pid/log", (req, res) => {
+  if (!projectDir(req, res)) return;
+  res.json({ log: tailLog(req.params.pid) });
+});
+
+// ---------- outputs & sources ----------
+app.get("/api/outputs", (req, res) => {
+  const out = [];
+  for (const t of state.threads) {
+    for (const ev of t.events) {
+      if (ev.type === "file_change") out.push({ kind: "file", path: ev.path, ts: ev.ts, thread: t.title || "chat", threadId: t.id });
+      else if (ev.type === "preview_ready") out.push({ kind: "site", path: ev.path, url: ev.url, ts: ev.ts, thread: t.title || "chat", threadId: t.id });
+    }
+  }
+  out.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  res.json(out.slice(0, 20));
+});
+app.post("/api/threads/:id/source", (req, res) => {
+  const t = findThread(req.params.id);
+  if (!t) return res.status(404).json({ error: "not found" });
+  const url = String(req.body?.url || "").slice(0, 500);
+  if (!url) return res.status(400).json({ error: "empty url" });
+  const ev = { type: "source", url, title: String(req.body?.title || "").slice(0, 120), ts: Date.now() };
+  t.events.push(ev);
+  bus.broadcast(t.id, ev);
+  save();
+  res.json({ ok: true });
+});
 
 // ---------- scheduled tasks ----------
 setInterval(() => {

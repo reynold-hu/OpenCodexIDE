@@ -47,6 +47,42 @@ export const AGENT_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "run_background",
+      description: "Start a long-running process (dev server, watcher) in the workspace. Returns immediately; the process appears in the user's 后台进程 panel.",
+      parameters: {
+        type: "object",
+        properties: { command: { type: "string", description: "bash command to keep running, e.g. `npm run dev`" } },
+        required: ["command"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_source",
+      description: "Record a reference link (website, repo, doc) into the conversation's 来源 (sources) list shown in the summary panel.",
+      parameters: {
+        type: "object",
+        properties: { url: { type: "string" }, title: { type: "string" } },
+        required: ["url"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "run_subagent",
+      description: "Delegate a self-contained research/inspection subtask to a subagent (separate context, read-only tools). Returns the subagent's summary. Use for broad exploration to keep your context lean.",
+      parameters: {
+        type: "object",
+        properties: { prompt: { type: "string", description: "Complete, standalone instructions for the subagent" } },
+        required: ["prompt"],
+      },
+    },
+  },
 ];
 
 export async function chatStream({ baseUrl, apiKey, model, messages, tools, temperature = 0.2 }, onTextDelta, signal) {

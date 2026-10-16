@@ -43,6 +43,15 @@ function blocksFromEvents(events: any[]): Block[] {
       case "preview_ready":
         blocks.push({ kind: "preview", path: ev.path, url: ev.url });
         break;
+      case "process":
+        blocks.push({ kind: "process", id: ev.id, cmd: ev.cmd, pid: ev.pid });
+        break;
+      case "source":
+        blocks.push({ kind: "source", url: ev.url, title: ev.title });
+        break;
+      case "subagent":
+        blocks.push({ kind: "subagent", id: ev.id, prompt: ev.prompt, done: !!ev.done });
+        break;
       case "agent_message":
         index.set(ev.id, blocks.length);
         blocks.push({ kind: "agent_message", id: ev.id, text: ev.content || "", done: !!ev.done, feedback: ev.feedback, ts: ev.ts });
@@ -114,6 +123,7 @@ export default function App() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [preview, setPreview] = useState<{ url: string; path: string } | null>(null);
+  const [tabRequest, setTabRequest] = useState<{ tab: any; nonce: number }>({ tab: "review", nonce: 0 });
   const [canvasPath, setCanvasPath] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -200,6 +210,18 @@ export default function App() {
       case "preview_ready":
         setBlocks((b) => [...b, { kind: "preview", path: ev.path, url: ev.url }]);
         break;
+      case "process":
+        setBlocks((b) => [...b, { kind: "process", id: ev.id, cmd: ev.cmd, pid: ev.pid }]);
+        break;
+      case "source":
+        setBlocks((b) => [...b, { kind: "source", url: ev.url, title: ev.title }]);
+        break;
+      case "subagent":
+        setBlocks((b) => [...b, { kind: "subagent", id: ev.id, prompt: ev.prompt, done: !!ev.done }]);
+        break;
+      case "subagent_update":
+        setBlocks((b) => b.map((x) => (x.kind === "subagent" && x.id === ev.id ? { ...x, done: true } : x)));
+        break;
       case "agent_message":
         setBlocks((b) => [...b, { kind: "agent_message", id: ev.id, text: ev.content || "", done: false, ts: ev.ts }]);
         break;
@@ -233,7 +255,7 @@ export default function App() {
     setRunning(full.status === "running");
     const es = new EventSource(api.streamUrl(t.id));
     esRef.current = es;
-    for (const type of ["turn_started", "plan", "plan_update", "command", "command_update", "command_result", "file_change", "files_reverted", "preview_ready", "agent_message", "agent_message_delta", "agent_message_done", "approval_request", "turn_complete", "turn_error"]) {
+    for (const type of ["turn_started", "plan", "plan_update", "command", "command_update", "command_result", "file_change", "files_reverted", "preview_ready", "process", "source", "subagent", "subagent_update", "agent_message", "agent_message_delta", "agent_message_done", "approval_request", "turn_complete", "turn_error"]) {
       es.addEventListener(type, (e: MessageEvent) => {
         try {
           handleEvent(JSON.parse(e.data));
@@ -250,7 +272,12 @@ export default function App() {
       setPanelOpen(true);
     };
     window.addEventListener("ocx:preview", h);
-    return () => window.removeEventListener("ocx:preview", h);
+    const hs = () => setSummaryOpen((v) => !v);
+    window.addEventListener("ocx:summary", hs);
+    return () => {
+      window.removeEventListener("ocx:preview", h);
+      window.removeEventListener("ocx:summary", hs);
+    };
   }, [project]);
 
   useEffect(() => {
@@ -423,6 +450,14 @@ export default function App() {
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
         newChat();
+      } else if (e.key === "`" && e.ctrlKey) {
+        e.preventDefault();
+        setPanelOpen(true);
+        setTabRequest((r) => ({ tab: "terminal", nonce: r.nonce + 1 }));
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p" && !e.shiftKey) {
+        e.preventDefault();
+        setPanelOpen(true);
+        setTabRequest((r) => ({ tab: "files", nonce: r.nonce + 1 }));
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
         if (thread) {
           e.preventDefault();
@@ -607,6 +642,7 @@ export default function App() {
                         onOpenWindow={(url) => window.open(url, "_blank")}
                         threadId={thread?.id}
                         onFeedback={setFeedback}
+                        projectId={project?.id}
                       />
                     </div>
                   ))}
@@ -647,10 +683,13 @@ export default function App() {
           <SummaryPanel
             thread={thread}
             blocks={grouped}
+            projectId={project?.id || ""}
+            refreshToken={refreshToken}
             onClose={() => setSummaryOpen(false)}
             onJump={(i) => { setRailView("chat"); jumpTo(i); }}
             onOpenPreview={(url, path) => { setPreview({ url, path }); setPanelOpen(true); }}
-            onRemoveSchedule={async (taskId) => { await api.unschedule(thread.id, taskId); const full = await api.thread(thread.id); setThread(full); setRefreshToken((r) => r + 1); }}
+            onOpenCanvas={(path) => { setCanvasPath(path); setPanelOpen(true); }}
+            onAddSource={async (url) => { await api.addSource(thread.id, url); setRefreshToken((r) => r + 1); }}
           />
         )}
 
@@ -662,6 +701,8 @@ export default function App() {
             preview={preview}
             canvasPath={canvasPath}
             onOpenCanvas={setCanvasPath}
+            tabRequest={tabRequest}
+            onOpenToolFromBrowser={(t) => setTabRequest((r) => ({ tab: t, nonce: r.nonce + 1 }))}
           />
         )}
       </div>

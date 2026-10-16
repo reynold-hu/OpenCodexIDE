@@ -188,6 +188,47 @@ export function MessageFooter({ block, threadId, onFeedback }: { block: Extract<
   );
 }
 
+export function ProcessCard({ block, projectId }: { block: Extract<Block, { kind: "process" }>; projectId: string }) {
+  const [open, setOpen] = useState(false);
+  const [log, setLog] = useState("");
+  const [stopped, setStopped] = useState(false);
+  const toggle = async () => {
+    if (!open && !log) {
+      try {
+        const r = await fetch(`/api/projects/${projectId}/processes/${block.id}/log`).then((x) => x.json());
+        setLog(r.log || "(empty)");
+      } catch {
+        setLog("(unavailable)");
+      }
+    }
+    setOpen(!open);
+  };
+  return (
+    <div className="card cmd-card">
+      <div className="cmd-line">
+        <span className={`status-dot ${stopped ? "idle" : "running"}`} style={stopped ? { background: "var(--faint)" } : undefined} />
+        <span className="dollar">⧉</span>
+        <span className="cmd-text">{block.cmd}</span>
+        <span className="ch-meta">pid {block.pid}</span>
+        {!stopped && (
+          <button
+            className="fcard-btn"
+            style={{ padding: "2px 8px" }}
+            onClick={async () => {
+              await fetch(`/api/projects/${projectId}/processes/${block.id}/stop`, { method: "POST" });
+              setStopped(true);
+            }}
+          >
+            停止
+          </button>
+        )}
+        <button className="fcard-btn" style={{ padding: "2px 8px" }} onClick={toggle}>{open ? "收起" : "日志"}</button>
+      </div>
+      {open && <pre className="cmd-out">{log}</pre>}
+    </div>
+  );
+}
+
 export function BlockView({
   block,
   onApprove,
@@ -198,6 +239,7 @@ export function BlockView({
   onOpenWindow,
   threadId,
   onFeedback,
+  projectId,
 }: {
   block: Block;
   onApprove?: (id: string, d: "approve" | "deny") => void;
@@ -208,6 +250,7 @@ export function BlockView({
   onOpenWindow?: (url: string) => void;
   threadId?: string;
   onFeedback?: (eventId: string, v: "up" | "down") => void;
+  projectId?: string;
 }) {
   switch (block.kind) {
     case "prompt":
@@ -229,6 +272,11 @@ export function BlockView({
       return <FileGroupCard items={block.items} onUndo={onUndoFiles} onViewChanges={onViewChanges} onOpenCanvas={onOpenCanvas} />;
     case "preview":
       return <PreviewCard url={block.url} path={block.path} onOpenPreview={onOpenPreview || (() => {})} onOpenWindow={onOpenWindow || (() => window.open(block.url))} />;
+    case "process":
+      return projectId ? <ProcessCard block={block} projectId={projectId} /> : null;
+    case "source":
+    case "subagent":
+      return null;
     case "error":
       return <div className="agent-msg" style={{ color: "var(--accent-strong)" }}>{block.message}</div>;
     default:
