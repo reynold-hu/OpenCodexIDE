@@ -1,14 +1,19 @@
 import express from "express";
 import cors from "cors";
 import crypto from "node:crypto";
-import { load, save, saveNow, resetAll, workspacePath } from "./store.js";
+import fs from "node:fs";
+import path from "node:path";
+import { execFile } from "node:child_process";
+import { load, save, saveNow, resetAll, workspacePath, DATA_HOME } from "./store.js";
 import { runTurn, bus } from "./agent.js";
-import { ensureWorkspace, tree, readFileLimited, gitStatus, gitDiff, gitCommitAll, shellExec } from "./workfs.js";
+import { ensureWorkspace, tree, readFileLimited, writeFileInWorkspace, gitStatus, gitDiff, gitCommitAll, shellExec, revertPath } from "./workfs.js";
 import { PROVIDER_PRESETS, providerRuntime, effectiveProvider, sanitizeSettings, mergeProviderConfig } from "./providers.js";
 import { listRemoteModels } from "./llm.js";
 
 const app = express();
 const PORT = process.env.PORT || 8787;
+const SHOTS_DIR = path.join(DATA_HOME, "shots");
+fs.mkdirSync(SHOTS_DIR, { recursive: true });
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
@@ -116,6 +121,7 @@ app.get("/api/threads", (req, res) => {
   const projectId = req.query.projectId;
   let list = state.threads;
   if (projectId) list = list.filter((t) => t.projectId === projectId);
+  if (!req.query.archived) list = list.filter((t) => !t.archived);
   res.json(list.map(({ events, ...t }) => ({ ...t, messageCount: events.length })));
 });
 app.get("/api/threads/:id", (req, res) => {
@@ -147,9 +153,99 @@ app.patch("/api/threads/:id", (req, res) => {
   if (req.body?.title !== undefined) t.title = String(req.body.title).slice(0, 80);
   if (req.body?.model) t.model = req.body.model;
   if (req.body?.approvalMode) t.approvalMode = req.body.approvalMode;
+  if (req.body?.pinned !== undefined) t.pinned = !!req.body.pinned;
+  if (req.body?.archived !== undefined) t.archived = !!req.body.archived;
   t.updatedAt = Date.now();
   save();
   res.json(t);
+});
+app.post("/api/threads/:id/fork", (req, res) => {
+  const src = findThread(req.params.id);
+  if (!src) return res.status(404).json({ error: "not found" });
+  const t = {
+    id: uid("thr"),
+    projectId: src.projectId,
+    title: `Fork · ${src.title || "chat"}`,
+    forkOf: src.id,
+    status: "idle",
+    model: src.model,
+    approvalMode: src.approvalMode,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    events: structuredClone(src.events),
+  };
+  state.threads.unshift(t);
+  saveNow();
+  res.json({ ...t, messageCount: t.events.length, events: undefined });
+});
+app.post("/api/threads/:id/side", (req, res) => {  const parent = findThread(req.params.id);
+  if (!parent) return res.status(404).json({ error: "not found" });
+  const t = {
+    id: uid("thr"),
+    projectId: parent.projectId,
+    title: req.body?.title || `Side chat · ${parent.title || "chat"}`,
+    sideOf: parent.id,
+    status: "idle",
+    model: parent.model,
+    approvalMode: parent.approvalMode,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    events: [],
+  };
+  state.threads.unshift(t);
+  save();
+  res.json({ ...t, messageCount: 0 });
+});
+app.post("/api/threads/:id/undo", (req, res) => {
+  const t = findThread(req.params.id);
+  if (!t) return res.status(404).json({ error: "not found" });
+  const paths = Array.isArray(req.body?.paths) ? req.body.paths : [];
+  const project = findProject(t.projectId);
+  if (!project) return res.status(400).json({ error: "no project" });
+  const dir = workspacePath(project);
+  (async () => {
+    const results = [];
+    for (const rel of paths) {
+      try {
+        const r = await revertPath(dir, String(rel));
+        results.push({ path: rel, result: r });
+        for (const ev of t.events) if (ev.type === "file_change" && ev.path === rel) ev.reverted = true;
+        bus.broadcast(t.id, { type: "files_reverted", paths: results.map((x) => x.path) });
+      } catch (e) {
+        results.push({ path: rel, error: e.message });
+      }
+    }
+    save();
+    res.json({ ok: true, results });
+  })();
+});
+app.post("/api/threads/:id/feedback", (req, res) => {
+  const t = findThread(req.params.id);
+  if (!t) return res.status(404).json({ error: "not found" });
+  const ev = t.events.find((e) => e.id === req.body?.eventId);
+  if (!ev) return res.status(404).json({ error: "event not found" });
+  ev.feedback = req.body.value === "up" || req.body.value === "down" ? req.body.value : null;
+  save();
+  res.json({ ok: true });
+});
+app.post("/api/threads/:id/schedule", (req, res) => {
+  const t = findThread(req.params.id);
+  if (!t) return res.status(404).json({ error: "not found" });
+  const prompt = String(req.body?.prompt || "").trim();
+  const everyMinutes = Math.max(5, Number(req.body?.everyMinutes) || 60);
+  if (!prompt) return res.status(400).json({ error: "empty prompt" });
+  t.scheduled = t.scheduled || [];
+  const task = { id: uid("task"), prompt, everyMinutes, nextRun: Date.now() + everyMinutes * 60000 };
+  t.scheduled.push(task);
+  saveNow();
+  res.json(task);
+});
+app.delete("/api/threads/:id/schedule/:taskId", (req, res) => {
+  const t = findThread(req.params.id);
+  if (!t) return res.status(404).json({ error: "not found" });
+  t.scheduled = (t.scheduled || []).filter((s) => s.id !== req.params.taskId);
+  saveNow();
+  res.json({ ok: true });
 });
 app.delete("/api/threads/:id", (req, res) => {
   const i = state.threads.findIndex((t) => t.id === req.params.id);
@@ -252,6 +348,73 @@ app.post("/api/projects/:id/terminal", async (req, res) => {
   const r = await shellExec(dir, cmd, 20000);
   res.json(r);
 });
+app.post("/api/projects/:id/file", (req, res) => {
+  const dir = projectDir(req, res);
+  if (!dir) return;
+  const rel = String(req.body?.path || "").replace(/^\/+/, "");
+  if (!rel) return res.status(400).json({ error: "empty path" });
+  try {
+    writeFileInWorkspace(dir, rel, String(req.body?.content ?? ""));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ---------- headless preview & screenshots ----------
+const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".txt": "text/plain; charset=utf-8", ".md": "text/plain; charset=utf-8" };
+
+app.get("/preview/:projectId/*", (req, res) => {
+  const p = findProject(req.params.projectId);
+  if (!p) return res.status(404).send("project not found");
+  const dir = workspacePath(p);
+  const rel = req.params[0] || "index.html";
+  const full = path.normalize(path.join(dir, rel));
+  if (!full.startsWith(dir)) return res.status(400).send("bad path");
+  if (!fs.existsSync(full) || fs.statSync(full).isDirectory()) return res.status(404).send("file not found");
+  res.set("Cache-Control", "no-store");
+  res.type(MIME[path.extname(full).toLowerCase()] || "application/octet-stream");
+  fs.createReadStream(full).pipe(res);
+});
+
+function findChrome() {
+  const candidates = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+  ];
+  return candidates.find((c) => fs.existsSync(c));
+}
+
+app.post("/api/projects/:id/screenshot", async (req, res) => {
+  const dir = projectDir(req, res);
+  if (!dir) return;
+  const chrome = findChrome();
+  if (!chrome) return res.status(501).json({ error: "no headless browser found (install Google Chrome)" });
+  const rel = String(req.body?.path || "index.html").replace(/^\/+/, "");
+  const name = `${crypto.randomBytes(6).toString("hex")}.png`;
+  const out = path.join(SHOTS_DIR, name);
+  const url = `http://127.0.0.1:${PORT}/preview/${req.params.id}/${rel.split("/").map(encodeURIComponent).join("/")}`;
+  execFile(chrome, ["--headless=new", "--disable-gpu", "--no-first-run", `--screenshot=${out}`, "--window-size=1280,900", "--virtual-time-budget=4000", url], { timeout: 30000 }, (err) => {
+    if (err || !fs.existsSync(out)) return res.status(500).json({ error: err?.message || "screenshot failed" });
+    res.json({ url: `/shots/${name}` });
+  });
+});
+app.use("/shots", express.static(SHOTS_DIR));
+
+// ---------- scheduled tasks ----------
+setInterval(() => {
+  for (const t of state.threads) {
+    for (const task of t.scheduled || []) {
+      if (t.status === "running") continue;
+      if (Date.now() >= task.nextRun) {
+        task.nextRun = Date.now() + task.everyMinutes * 60000;
+        runTurn(state, t, `[scheduled] ${task.prompt}`).then(() => save()).catch(() => {});
+      }
+    }
+  }
+}, 20000);
 
 // ---------- health ----------
 app.get("/api/health", (req, res) => res.json({ ok: true, name: "OpenCodex IDE", version: "0.1.0" }));

@@ -35,6 +35,13 @@ export interface Project {
   createdAt: number;
 }
 
+export interface ScheduledTask {
+  id: string;
+  prompt: string;
+  everyMinutes: number;
+  nextRun: number;
+}
+
 export interface ThreadMeta {
   id: string;
   projectId: string;
@@ -45,6 +52,10 @@ export interface ThreadMeta {
   createdAt: number;
   updatedAt: number;
   messageCount: number;
+  pinned?: boolean;
+  archived?: boolean;
+  sideOf?: string;
+  scheduled?: ScheduledTask[];
 }
 
 export interface ModelInfo {
@@ -60,9 +71,17 @@ export interface PlanItem {
   done: boolean;
 }
 
+export interface FileChangeItem {
+  path: string;
+  additions: number;
+  deletions: number;
+  patch: string;
+  reverted?: boolean;
+}
+
 export type Block =
   | { kind: "prompt"; text: string }
-  | { kind: "agent_message"; id: string; text: string; done: boolean }
+  | { kind: "agent_message"; id: string; text: string; done: boolean; feedback?: string | null; ts?: number }
   | { kind: "plan"; id: string; items: PlanItem[] }
   | {
       kind: "command";
@@ -75,7 +94,9 @@ export type Block =
       reason?: string;
       approvalId?: string;
     }
-  | { kind: "file_change"; path: string; additions: number; deletions: number; patch: string }
+  | ({ kind: "file_change" } & FileChangeItem)
+  | { kind: "file_group"; items: FileChangeItem[] }
+  | { kind: "preview"; path: string; url: string }
   | { kind: "turn_complete" }
   | { kind: "error"; message: string };
 

@@ -13,8 +13,25 @@ function inline(text: string, keyBase: string): React.ReactNode[] {
     else if (tok.startsWith("**")) nodes.push(<strong key={`${keyBase}-${i}`}>{tok.slice(2, -2)}</strong>);
     else if (tok.startsWith("[")) {
       const mm = tok.match(/\[([^\]]+)\]\(([^)]+)\)/);
-      if (mm) nodes.push(<a key={`${keyBase}-${i}`} href={mm[2]} target="_blank" rel="noreferrer">{mm[1]}</a>);
-      else nodes.push(tok);
+      if (mm) {
+        if (mm[2].startsWith("preview:")) {
+          nodes.push(
+            <a
+              key={`${keyBase}-${i}`}
+              className="preview-link"
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                window.dispatchEvent(new CustomEvent("ocx:preview", { detail: { path: mm[2].slice("preview:".length) } }));
+              }}
+            >
+              🌐 {mm[1]}
+            </a>
+          );
+        } else {
+          nodes.push(<a key={`${keyBase}-${i}`} href={mm[2]} target="_blank" rel="noreferrer">{mm[1]}</a>);
+        }
+      } else nodes.push(tok);
     } else nodes.push(<em key={`${keyBase}-${i}`}>{tok.slice(1, -1)}</em>);
     last = m.index + tok.length;
     i++;

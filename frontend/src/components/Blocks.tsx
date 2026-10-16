@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import type { Block } from "../types";
+import type { Block, FileChangeItem } from "../types";
 import { Markdown } from "../Markdown";
-import { IconCheck, IconChevron, IconShield, IconX, IconFile } from "../icons";
+import { IconCheck, IconChevron, IconShield, IconX, IconFile, IconGlobe, IconUndo, IconCopy, IconThumbUp, IconThumbDown, IconSpeaker, IconExternal, IconCalendar } from "../icons";
 
-function DiffView({ patch }: { patch: string }) {
+export function DiffView({ patch }: { patch: string }) {
   const lines = patch.split("\n");
   return (
     <pre className="diff">
@@ -77,34 +77,158 @@ export function CommandCard({ block, onApprove }: { block: Extract<Block, { kind
   );
 }
 
-export function FileChangeCard({ block }: { block: Extract<Block, { kind: "file_change" }> }) {
-  const [open, setOpen] = useState(false);
+export function FileGroupCard({
+  items,
+  onUndo,
+  onViewChanges,
+  onOpenCanvas,
+}: {
+  items: FileChangeItem[];
+  onUndo?: (paths: string[]) => void;
+  onViewChanges?: () => void;
+  onOpenCanvas?: (path: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const adds = items.reduce((s, i) => s + i.additions, 0);
+  const dels = items.reduce((s, i) => s + i.deletions, 0);
+  const reverted = items.every((i) => i.reverted);
+  const visible = expanded ? items : items.slice(0, 3);
   return (
     <div className="card">
-      <div className="card-head patch-head" onClick={() => setOpen(!open)}>
-        <IconFile size={14} style={{ color: "var(--muted)" }} />
-        <span className="ch-label" style={{ fontFamily: "var(--mono)", fontSize: 12.5 }}>{block.path}</span>
-        <span className="stat-add">+{block.additions}</span>
-        <span className="stat-del">−{block.deletions}</span>
-        <IconChevron size={13} dir={open ? "up" : "down"} style={{ color: "var(--faint)" }} />
+      <div className="fcard-head">
+        <span className="fcard-ico"><IconFile size={15} /></span>
+        <div className="fcard-title">
+          <div className="fcard-label">{reverted ? "已撤销变更" : `已编辑 ${items.length} 个文件`}</div>
+          {!reverted && <div className="fcard-stat"><span className="stat-add">+{adds}</span> <span className="stat-del">-{dels}</span></div>}
+        </div>
+        <span style={{ flex: 1 }} />
+        {!reverted && onUndo && (
+          <button className="fcard-btn" onClick={() => onUndo(items.map((i) => i.path))}>
+            撤销 <IconUndo size={13} />
+          </button>
+        )}
+        {onViewChanges && (
+          <button className="fcard-btn primary" onClick={onViewChanges}>查看变更</button>
+        )}
       </div>
-      {open && <DiffView patch={block.patch} />}
+      <div className="fcard-files">
+        {visible.map((f, i) => (
+          <div key={i} className="fcard-file" onClick={() => !f.reverted && onOpenCanvas?.(f.path)}>
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: f.reverted ? "line-through" : undefined }}>{f.path}</span>
+            <span className="stat-add">+{f.additions}</span>
+            <span className="stat-del">-{f.deletions}</span>
+          </div>
+        ))}
+        {items.length > 3 && (
+          <button className="fcard-more" onClick={() => setExpanded(!expanded)}>
+            {expanded ? "收起" : `再显示 ${items.length - 3} 个文件`} <IconChevron size={12} dir={expanded ? "up" : "down"} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-export function BlockView({ block, onApprove }: { block: Block; onApprove?: (id: string, d: "approve" | "deny") => void }) {
+export function PreviewCard({ url, path, onOpenPreview, onOpenWindow }: { url: string; path: string; onOpenPreview: (url: string, path: string) => void; onOpenWindow: (url: string) => void }) {
+  const [menu, setMenu] = useState(false);
+  const [shot, setShot] = useState<string | null>(null);
+  const [shooting, setShooting] = useState(false);
+  const shoot = async () => {
+    setShooting(true);
+    try {
+      const r = await fetch(`/api/projects/${(window as any).__ocxProjectId || ""}/screenshot`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) });
+      const j = await r.json();
+      if (j.url) setShot(j.url);
+      else alert(j.error || "截图失败");
+    } catch (e: any) {
+      alert(String(e?.message || e));
+    }
+    setShooting(false);
+  };
+  return (
+    <div className="card preview-card">
+      <div className="fcard-head">
+        <span className="fcard-ico globe"><IconGlobe size={16} /></span>
+        <div className="fcard-title">
+          <div className="fcard-label">网页预览</div>
+          <div className="fcard-sub">网站 · {path}</div>
+        </div>
+        <span style={{ flex: 1 }} />
+        <div style={{ position: "relative" }}>
+          <button className="fcard-btn" onClick={() => setMenu(!menu)}>打开方式 <IconChevron size={11} dir={menu ? "up" : "down"} /></button>
+          {menu && (
+            <div className="tmenu open-left" onMouseLeave={() => setMenu(false)}>
+              <button className="tmenu-item" onClick={() => { setMenu(false); onOpenPreview(url, path); }}><span className="tmi-ico"><IconGlobe size={13} /></span>在预览面板打开</button>
+              <button className="tmenu-item" onClick={() => { setMenu(false); onOpenWindow(url); }}><span className="tmi-ico"><IconExternal size={13} /></span>在新窗口打开</button>
+              <button className="tmenu-item" onClick={() => { setMenu(false); shoot(); }}>{shooting ? "截图中…" : "无头浏览器截图"}<span className="tmi-ico"><IconCalendar size={13} /></span></button>
+            </div>
+          )}
+        </div>
+      </div>
+      {shot && <img className="preview-shot" src={shot} alt="screenshot" onClick={() => onOpenWindow(shot)} />}
+    </div>
+  );
+}
+
+export function MessageFooter({ block, threadId, onFeedback }: { block: Extract<Block, { kind: "agent_message" }>; threadId: string; onFeedback: (eventId: string, v: "up" | "down") => void }) {
+  const speak = () => {
+    try {
+      const u = new SpeechSynthesisUtterance(block.text.slice(0, 2000));
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+    } catch {}
+  };
+  return (
+    <div className="msg-footer">
+      <button className="mf-btn" title="复制" onClick={() => navigator.clipboard.writeText(block.text)}><IconCopy size={13} /></button>
+      <button className="mf-btn" title="朗读" onClick={speak}><IconSpeaker size={13} /></button>
+      <button className={`mf-btn ${block.feedback === "up" ? "on" : ""}`} title="赞" onClick={() => onFeedback(block.id, "up")}><IconThumbUp size={13} /></button>
+      <button className={`mf-btn ${block.feedback === "down" ? "on" : ""}`} title="踩" onClick={() => onFeedback(block.id, "down")}><IconThumbDown size={13} /></button>
+    </div>
+  );
+}
+
+export function BlockView({
+  block,
+  onApprove,
+  onUndoFiles,
+  onViewChanges,
+  onOpenCanvas,
+  onOpenPreview,
+  onOpenWindow,
+  threadId,
+  onFeedback,
+}: {
+  block: Block;
+  onApprove?: (id: string, d: "approve" | "deny") => void;
+  onUndoFiles?: (paths: string[]) => void;
+  onViewChanges?: () => void;
+  onOpenCanvas?: (path: string) => void;
+  onOpenPreview?: (url: string, path: string) => void;
+  onOpenWindow?: (url: string) => void;
+  threadId?: string;
+  onFeedback?: (eventId: string, v: "up" | "down") => void;
+}) {
   switch (block.kind) {
     case "prompt":
       return <div className="user-row">{block.text}</div>;
     case "agent_message":
-      return <Markdown text={block.text} />;
+      return (
+        <div style={{ width: "100%" }}>
+          <Markdown text={block.text} />
+          {block.done && threadId && onFeedback && <MessageFooter block={block} threadId={threadId} onFeedback={onFeedback} />}
+        </div>
+      );
     case "plan":
       return <PlanCard block={block} />;
     case "command":
       return <CommandCard block={block} onApprove={onApprove} />;
     case "file_change":
-      return <FileChangeCard block={block} />;
+      return <FileGroupCard items={[block]} onUndo={onUndoFiles} onViewChanges={onViewChanges} onOpenCanvas={onOpenCanvas} />;
+    case "file_group":
+      return <FileGroupCard items={block.items} onUndo={onUndoFiles} onViewChanges={onViewChanges} onOpenCanvas={onOpenCanvas} />;
+    case "preview":
+      return <PreviewCard url={block.url} path={block.path} onOpenPreview={onOpenPreview || (() => {})} onOpenWindow={onOpenWindow || (() => window.open(block.url))} />;
     case "error":
       return <div className="agent-msg" style={{ color: "var(--accent-strong)" }}>{block.message}</div>;
     default:

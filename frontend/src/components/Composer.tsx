@@ -75,6 +75,19 @@ export function Composer({
     onSend(v);
   };
 
+  const attach = (file: File) => {
+    if (file.size > 64 * 1024) {
+      onChange(`${value}\n[attached file too large: ${file.name}]`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || "");
+      onChange(`${value ? value + "\n\n" : ""}请结合附件内容工作：\n\n\`\`\`${file.name}\n${text.slice(0, 60000)}\n\`\`\``);
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="composer">
       <textarea
@@ -91,6 +104,18 @@ export function Composer({
         }}
       />
       <div className="composer-bar">
+        <label className="pill" title="Attach text file" style={{ cursor: "pointer" }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+          <input
+            type="file"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) attach(f);
+              e.target.value = "";
+            }}
+          />
+        </label>
         <div style={{ position: "relative" }}>
           <button className={`pill ${modelOpen ? "active" : ""}`} onClick={() => setModelOpen(!modelOpen)}>
             <IconBolt size={12} />

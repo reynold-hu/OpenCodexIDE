@@ -139,10 +139,10 @@ async function emitFileChange(state, thread, dir, relPath, content) {
 function detectTask(prompt) {
   const p = prompt.toLowerCase();
   const fileMatch = prompt.match(/([A-Za-z0-9_./-]+\.[a-zA-Z0-9]{1,6})/);
-  if (/\b(create|write|add|make|implement|build|fix|update|change|edit|refactor)\b/.test(p)) return "create";
-  if (/\b(list|show)\b.*\b(files?|content|directory|dir)\b|^ls\b|what files/i.test(p)) return "list";
-  if (/\b(git status|git log|branch)\b/.test(p)) return "git";
-  if (/\b(read|open|show)\b/.test(p) && fileMatch) return "read";
+  if (/\b(create|write|add|make|implement|build|fix|update|change|edit|refactor)\b/.test(p) || /(做|创建|写|生成|实现|构建|新建|添加|修改|修复|开发)/.test(prompt)) return "create";
+  if (/\b(list|show)\b.*\b(files?|content|directory|dir)\b|^ls\b|what files/i.test(p) || /(列出|查看).*(文件|目录)/.test(prompt)) return "list";
+  if (/\b(git status|git log|branch)\b/.test(p) || /git\s*(状态|日志)/.test(p)) return "git";
+  if ((/\b(read|open|show)\b/.test(p) || /(读取|打开|看看)/.test(prompt)) && fileMatch) return "read";
   return "inspect";
 }
 
@@ -241,6 +241,56 @@ This document was produced from your prompt:
 - Add usage examples for your audience.
 `,
       summary: "I drafted `docs/NOTES.md` from your prompt. You can refine it — ask me to expand any section.",
+    };
+  }
+  if (/\b(dashboard|website|site|landing|html|visuali[sz]|chart)\b/.test(p) || /(看板|网页|页面|可视化|图表|仪表盘)/.test(prompt)) {
+    return {
+      file: "site/index.html",
+      preview: true,
+      content: `<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>个人看板 · OpenCodex</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: -apple-system, "PingFang SC", sans-serif; background: #f6f6f4; color: #2d2d2b; padding: 32px; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: #939391; font-size: 13px; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .card { background: #fff; border: 1px solid #e8e8e4; border-radius: 14px; padding: 16px; }
+  .card .k { font-size: 12px; color: #939391; }
+  .card .v { font-size: 24px; font-weight: 700; margin-top: 6px; }
+  .card .d { font-size: 12px; margin-top: 4px; color: #00a844; }
+  .card .d.neg { color: #e04a2f; }
+  ul.list { background: #fff; border: 1px solid #e8e8e4; border-radius: 14px; padding: 16px 16px 16px 34px; }
+  ul.list li { margin: 6px 0; font-size: 14px; }
+  .bar { height: 8px; border-radius: 4px; background: #eee; margin-top: 10px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: linear-gradient(90deg, #cc7d5e, #ff5f38); }
+</style>
+</head>
+<body>
+  <h1>个人看板</h1>
+  <div class="sub">由 OpenCodex IDE 生成 · <span id="date"></span></div>
+  <div class="grid">
+    <div class="card"><div class="k">总资产</div><div class="v">¥128,450</div><div class="d">+2.1% 本月</div></div>
+    <div class="card"><div class="k">月度基线</div><div class="v">¥11,000</div><div class="d">无变化</div></div>
+    <div class="card"><div class="k">待办</div><div class="v">3 / 7</div><div class="d neg">-2 较上周</div><div class="bar"><i style="width:43%"></i></div></div>
+    <div class="card"><div class="k">习惯打卡</div><div class="v">12 天</div><div class="d">连续中</div><div class="bar"><i style="width:80%"></i></div></div>
+  </div>
+  <ul class="list">
+    <li>10 号信用卡账单已核对</li>
+    <li>25 号花呗还款计划保持不变</li>
+    <li>账户快照与图标风格已统一</li>
+    <li>日期、还款周期和 ¥11,000 月度基线都没有变化</li>
+  </ul>
+  <script>document.getElementById("date").textContent = new Date().toLocaleDateString("zh-CN");</script>
+</body>
+</html>
+`,
+      summary: "新版已验证：网页看板已生成，要点如下：\n\n- 10 号账单与 25 号还款计划保持不变\n- 两行账户快照使用统一的图标风格与尺寸\n- 日期、还款周期和 ¥11,000 月度基线都没有变化\n\n[查看预览](preview:site/index.html)。",
     };
   }
   if (/\b(server|api|http)\b/.test(p)) {
@@ -527,6 +577,10 @@ export async function runTurn(state, thread, prompt) {
     const applied = await gateFileChange(state, thread, dir, gen.file, gen.content);
     setPlan(2, true);
     setPlan(3, true);
+    if (applied && gen.preview) {
+      const project = threadProject(state, thread);
+      pushEvent(state, thread, { type: "preview_ready", path: gen.file, url: `/preview/${project.id}/${gen.file}`, ts: Date.now() });
+    }
     const verifyCmd = gen.file.endsWith(".js") ? `node --check ${gen.file} && echo OK` : gen.file.endsWith(".py") ? `python3 -m py_compile ${gen.file} && echo OK` : `head -20 ${gen.file}`;
     if (applied) {
       await runCommand(state, thread, verifyCmd, { mutating: false });
@@ -540,6 +594,10 @@ export async function runTurn(state, thread, prompt) {
     const gen = genCodeForPrompt(prompt);
     const applied2 = await gateFileChange(state, thread, dir, gen.file, gen.content);
     setPlan(2, true);
+    if (applied2 && gen.preview) {
+      const project = threadProject(state, thread);
+      pushEvent(state, thread, { type: "preview_ready", path: gen.file, url: `/preview/${project.id}/${gen.file}`, ts: Date.now() });
+    }
     await streamMessage(state, thread, applied2 ? gen.summary : `You declined the change to \`${gen.file}\`. Tell me what to adjust and I'll retry.`);
   }
 

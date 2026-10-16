@@ -106,6 +106,24 @@ export async function gitCommitAll(dir, message) {
   await execFileAsync("git", ["commit", "-q", "-m", message], { cwd: dir });
 }
 
+export async function revertPath(dir, rel) {
+  const p = safeJoin(dir, rel);
+  let tracked = false;
+  try {
+    const { stdout } = await execFileAsync("git", ["ls-files", "--", rel], { cwd: dir });
+    tracked = stdout.trim().length > 0;
+  } catch {}
+  if (tracked) {
+    await execFileAsync("git", ["checkout", "HEAD", "--", rel], { cwd: dir });
+    return "restored-to-head";
+  }
+  if (fs.existsSync(p)) {
+    fs.rmSync(p);
+    return "deleted";
+  }
+  return "noop";
+}
+
 export async function shellExec(dir, cmd, timeoutMs = 15000) {
   return new Promise((resolve) => {
     const child = execFileAsync("/bin/bash", ["-lc", cmd], { cwd: dir, timeout: timeoutMs, maxBuffer: 2 * 1024 * 1024 });

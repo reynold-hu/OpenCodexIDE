@@ -49,8 +49,9 @@ export function Sidebar({
 
   const groups = useMemo(() => {
     const out: { label: string; items: ThreadMeta[] }[] = [];
-    for (const t of filtered) {
-      const g = groupLabel(t.updatedAt, Date.now());
+    const sorted = [...filtered].sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || b.updatedAt - a.updatedAt);
+    for (const t of sorted) {
+      const g = t.pinned ? "置顶" : groupLabel(t.updatedAt, Date.now());
       let last = out[out.length - 1];
       if (!last || last.label !== g) {
         last = { label: g, items: [] };
@@ -65,7 +66,6 @@ export function Sidebar({
     <aside className="sidebar">
       <div className="sb-head">
         <div className="sb-brand">
-          <span className="logo">OC</span>
           <span className="name">OpenCodex</span>
           <button className="icon-btn" title="New chat" onClick={onNewChat}>
             <IconPlus size={15} />

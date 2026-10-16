@@ -3,10 +3,38 @@ import { api } from "../api";
 import type { Project } from "../types";
 import { IconX, IconFile, IconFolder } from "../icons";
 
-type Tab = "review" | "files" | "terminal";
+type Tab = "review" | "files" | "terminal" | "preview" | "canvas";
 
-export function SidePanel({ project, onClose, refreshToken }: { project: Project; onClose: () => void; refreshToken: number }) {
+export function SidePanel({
+  project,
+  onClose,
+  refreshToken,
+  preview,
+  canvasPath,
+  onOpenCanvas,
+}: {
+  project: Project;
+  onClose: () => void;
+  refreshToken: number;
+  preview: { url: string; path: string } | null;
+  canvasPath: string | null;
+  onOpenCanvas: (p: string | null) => void;
+}) {
   const [tab, setTab] = useState<Tab>("review");
+  const [canvas, setCanvas] = useState<{ path: string; content: string } | null>(null);
+  const [saved, setSaved] = useState("");
+  const [previewKey, setPreviewKey] = useState(0);
+  (window as any).__ocxProjectId = project.id;
+
+  useEffect(() => {
+    if (preview) setTab("preview");
+  }, [preview]);
+  useEffect(() => {
+    if (canvasPath) {
+      setTab("canvas");
+      api.file(project.id, canvasPath).then((f) => setCanvas({ path: canvasPath, content: f.content })).catch(() => {});
+    }
+  }, [canvasPath, project.id]);
   const [changes, setChanges] = useState<{ file: string; kind: string }[]>([]);
   const [diff, setDiff] = useState("");
   const [treeFiles, setTreeFiles] = useState<{ name: string; path: string; dir: boolean }[]>([]);
@@ -61,9 +89,9 @@ export function SidePanel({ project, onClose, refreshToken }: { project: Project
   return (
     <aside className="side-panel">
       <div className="sp-tabs">
-        {(["review", "files", "terminal"] as Tab[]).map((t) => (
+        {(["review", "files", "terminal", "preview", "canvas"] as Tab[]).map((t) => (
           <button key={t} className={`sp-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-            {t[0].toUpperCase() + t.slice(1)}
+            {t === "review" ? "Review" : t === "files" ? "Files" : t === "terminal" ? "Terminal" : t === "preview" ? "预览" : "画布"}
           </button>
         ))}
         <span className="grow" />
@@ -181,6 +209,52 @@ export function SidePanel({ project, onClose, refreshToken }: { project: Project
               />
             </div>
           </>
+        )}
+        {tab === "preview" && (
+          preview ? (
+            <div className="preview-frame-wrap">
+              <div className="preview-urlbar">
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{preview.url}</span>
+                <button className="btn" style={{ padding: "3px 8px" }} onClick={() => window.open(preview.url, "_blank")}>新窗口</button>
+                <button className="btn" style={{ padding: "3px 8px" }} onClick={() => setPreviewKey((k) => k + 1)}>刷新</button>
+              </div>
+              <iframe key={previewKey} className="preview-frame" src={preview.url} title="preview" sandbox="allow-scripts allow-same-origin" />
+            </div>
+          ) : (
+            <div className="sp-empty">让 Codex 生成网页后，预览会出现在这里。</div>
+          )
+        )}
+
+        {tab === "canvas" && (
+          canvas ? (
+            <div className="canvas-wrap">
+              <div className="preview-urlbar">
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{canvas.path}</span>
+                <button className="btn" style={{ padding: "3px 8px" }} onClick={() => { setCanvas(null); onOpenCanvas(null); }}>关闭</button>
+                <button
+                  className="btn primary"
+                  style={{ padding: "3px 10px" }}
+                  onClick={async () => {
+                    await api.saveFile(project.id, canvas.path, canvas.content);
+                    setSaved("已保存 " + new Date().toLocaleTimeString());
+                    refreshGit();
+                    setTimeout(() => setSaved(""), 2500);
+                  }}
+                >
+                  保存
+                </button>
+              </div>
+              {saved && <div style={{ fontSize: 11, color: "var(--green)", margin: "4px 0" }}>{saved}</div>}
+              <textarea
+                className="canvas-editor"
+                value={canvas.content}
+                onChange={(e) => setCanvas({ ...canvas, content: e.target.value })}
+                spellCheck={false}
+              />
+            </div>
+          ) : (
+            <div className="sp-empty">点击文件卡片上的文件名，在画布中编辑。</div>
+          )
         )}
       </div>
     </aside>

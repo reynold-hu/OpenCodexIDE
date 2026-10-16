@@ -1,17 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
-import type { ApprovalMode, Block, ModelInfo, Project, Settings, ThreadMeta, ProviderInfo } from "./types";
+import type { ApprovalMode, Block, FileChangeItem, ModelInfo, Project, Settings, ThreadMeta, ProviderInfo } from "./types";
 import { Sidebar } from "./components/Sidebar";
 import { Composer } from "./components/Composer";
 import { BlockView } from "./components/Blocks";
 import { SidePanel } from "./components/SidePanel";
 import { SettingsModal } from "./components/SettingsModal";
 import { CommandPalette } from "./components/CommandPalette";
-import { IconPanel, IconChevron } from "./icons";
+import { NavRail, type RailView } from "./components/NavRail";
+import { ThreadMenu } from "./components/ThreadMenu";
+import { SummaryPanel } from "./components/SummaryPanel";
+import { IconPanel, IconSummary, IconPlus, IconArrowDown } from "./icons";
 
 const CHIPS = [
   "Create a calculator in JavaScript",
   "Build a todo list app in Python",
+  "做一个个人资产看板网页",
   "List the workspace files",
   "Write a small HTTP server in Node",
   "What is the git status?",
@@ -29,23 +33,24 @@ function blocksFromEvents(events: any[]): Block[] {
         index.set(ev.id, blocks.length);
         blocks.push({ kind: "plan", id: ev.id, items: ev.items });
         break;
-      case "command": {
+      case "command":
         index.set(ev.id, blocks.length);
         blocks.push({ kind: "command", id: ev.id, cmd: ev.cmd, status: ev.status, reason: ev.reason });
         break;
-      }
       case "file_change":
-        blocks.push({ kind: "file_change", path: ev.path, additions: ev.additions, deletions: ev.deletions, patch: ev.patch });
+        blocks.push({ kind: "file_change", path: ev.path, additions: ev.additions, deletions: ev.deletions, patch: ev.patch, reverted: ev.reverted });
+        break;
+      case "preview_ready":
+        blocks.push({ kind: "preview", path: ev.path, url: ev.url });
         break;
       case "agent_message":
         index.set(ev.id, blocks.length);
-        blocks.push({ kind: "agent_message", id: ev.id, text: ev.content || "", done: !!ev.done });
+        blocks.push({ kind: "agent_message", id: ev.id, text: ev.content || "", done: !!ev.done, feedback: ev.feedback, ts: ev.ts });
         break;
       default:
         break;
     }
   }
-  // second pass for updates (commands / plans / messages) in stored events
   for (const ev of events) {
     if (ev.type === "command_result") {
       const i = index.get(ev.id);
@@ -57,12 +62,30 @@ function blocksFromEvents(events: any[]): Block[] {
   return blocks;
 }
 
+function groupBlocks(blocks: Block[]): Block[] {
+  const out: Block[] = [];
+  let group: FileChangeItem[] = [];
+  const flush = () => {
+    if (group.length === 1) out.push({ kind: "file_change", ...group[0] });
+    else if (group.length > 1) out.push({ kind: "file_group", items: group });
+    group = [];
+  };
+  for (const b of blocks) {
+    if (b.kind === "file_change") group.push({ path: b.path, additions: b.additions, deletions: b.deletions, patch: b.patch, reverted: b.reverted });
+    else {
+      flush();
+      out.push(b);
+    }
+  }
+  flush();
+  return out;
+}
+
 function playChime() {
   try {
     const Ctor = (window as any).AudioContext || (window as any).webkitAudioContext;
     const ctx = new Ctor();
-    const notes = [660, 880];
-    notes.forEach((f, i) => {
+    [660, 880].forEach((f, i) => {
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.frequency.value = f;
@@ -89,14 +112,19 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const [input, setInput] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [preview, setPreview] = useState<{ url: string; path: string } | null>(null);
+  const [canvasPath, setCanvasPath] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [refreshToken, setRefreshToken] = useState(0);
+  const [railView, setRailView] = useState<RailView | "chat">("chat");
+  const [allThreads, setAllThreads] = useState<ThreadMeta[]>([]);
+  const [atBottom, setAtBottom] = useState(true);
   const esRef = useRef<EventSource | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // theme
   useEffect(() => {
     if (!settings) return;
     const want = settings.theme === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : settings.theme;
@@ -113,7 +141,6 @@ export default function App() {
     });
   }, []);
 
-  // re-resolve model list when provider changes
   useEffect(() => {
     if (!settings) return;
     api.models().then(async (m) => {
@@ -127,39 +154,18 @@ export default function App() {
 
   useEffect(() => {
     if (!project) return;
-    api.threads(project.id).then(setThreads).catch(() => {});
-  }, [project?.id]);
+    api.threads(project.id).then((ts) => {
+      setThreads(ts);
+      setAllThreads(ts);
+    }).catch(() => {});
+  }, [project?.id, refreshToken]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2200);
   }, []);
 
-  // load thread + SSE
-  const openThread = useCallback(async (t: ThreadMeta) => {
-    esRef.current?.close();
-    setThread(t);
-    const full = await api.thread(t.id);
-    setBlocks(blocksFromEvents(full.events || []));
-    setRunning(full.status === "running");
-    const es = new EventSource(api.streamUrl(t.id));
-    esRef.current = es;
-    es.onmessage = (e) => {
-      try {
-        handleEvent(JSON.parse(e.data));
-      } catch {}
-    };
-    for (const type of ["turn_started", "plan", "plan_update", "command", "command_update", "command_result", "file_change", "agent_message", "agent_message_delta", "agent_message_done", "approval_request", "turn_complete", "turn_error"]) {
-      es.addEventListener(type, (e: MessageEvent) => {
-        try {
-          handleEvent(JSON.parse(e.data));
-        } catch {}
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings]);
-
-  const handleEvent = (ev: any) => {
+  const handleEvent = useCallback((ev: any) => {
     switch (ev.type) {
       case "turn_started":
         setRunning(true);
@@ -187,8 +193,15 @@ export default function App() {
         setBlocks((b) => [...b, { kind: "file_change", path: ev.path, additions: ev.additions, deletions: ev.deletions, patch: ev.patch }]);
         setRefreshToken((r) => r + 1);
         break;
+      case "files_reverted":
+        setBlocks((b) => b.map((x) => (x.kind === "file_change" && ev.paths?.includes(x.path) ? { ...x, reverted: true } : x)));
+        setRefreshToken((r) => r + 1);
+        break;
+      case "preview_ready":
+        setBlocks((b) => [...b, { kind: "preview", path: ev.path, url: ev.url }]);
+        break;
       case "agent_message":
-        setBlocks((b) => [...b, { kind: "agent_message", id: ev.id, text: ev.content || "", done: false }]);
+        setBlocks((b) => [...b, { kind: "agent_message", id: ev.id, text: ev.content || "", done: false, ts: ev.ts }]);
         break;
       case "agent_message_delta":
         setBlocks((b) => b.map((x) => (x.kind === "agent_message" && x.id === ev.id ? { ...x, text: x.text + ev.content } : x)));
@@ -200,7 +213,7 @@ export default function App() {
         setRunning(false);
         setRefreshToken((r) => r + 1);
         if (settings?.sounds) playChime();
-        setThreads((ts) => ts.map((t) => (t.id === thread?.id ? { ...t, status: "idle", updatedAt: Date.now(), title: t.title || "chat" } : t)));
+        setThreads((ts) => ts.map((t) => (t.id === thread?.id ? { ...t, status: "idle", updatedAt: Date.now() } : t)));
         break;
       case "turn_error":
         setRunning(false);
@@ -209,22 +222,63 @@ export default function App() {
       default:
         break;
     }
-  };
+  }, [settings?.sounds, thread?.id]);
 
-  // auto-scroll
+  const openThread = useCallback(async (t: ThreadMeta) => {
+    esRef.current?.close();
+    setThread(t);
+    setRailView("chat");
+    const full = await api.thread(t.id);
+    setBlocks(blocksFromEvents(full.events || []));
+    setRunning(full.status === "running");
+    const es = new EventSource(api.streamUrl(t.id));
+    esRef.current = es;
+    for (const type of ["turn_started", "plan", "plan_update", "command", "command_update", "command_result", "file_change", "files_reverted", "preview_ready", "agent_message", "agent_message_delta", "agent_message_done", "approval_request", "turn_complete", "turn_error"]) {
+      es.addEventListener(type, (e: MessageEvent) => {
+        try {
+          handleEvent(JSON.parse(e.data));
+        } catch {}
+      });
+    }
+  }, [handleEvent]);
+
+  useEffect(() => {
+    const h = (e: Event) => {
+      const path = (e as CustomEvent).detail?.path as string;
+      if (!path || !project) return;
+      setPreview({ url: `/preview/${project.id}/${path}`, path });
+      setPanelOpen(true);
+    };
+    window.addEventListener("ocx:preview", h);
+    return () => window.removeEventListener("ocx:preview", h);
+  }, [project]);
+
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && atBottom) el.scrollTop = el.scrollHeight;
   }, [blocks]);
 
-  const newChat = useCallback(async () => {
-    if (!project) return;
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+  };
+  const jumpBottom = () => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  };
+  const jumpTo = (idx: number) => {
+    document.getElementById(`blk-${idx}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  const newChat = useCallback(() => {
     esRef.current?.close();
     setThread(null);
     setBlocks([]);
     setInput("");
     setRunning(false);
-  }, [project?.id]);
+    setRailView("chat");
+  }, []);
 
   const send = useCallback(
     async (text: string) => {
@@ -241,7 +295,6 @@ export default function App() {
       }
       const created = t;
       await openThread(created);
-      setBlocks((b) => [...b]);
       setInput("");
       await api.prompt(created.id, text);
     },
@@ -251,6 +304,24 @@ export default function App() {
   const approve = useCallback(async (id: string, d: "approve" | "deny") => {
     await api.approval(id, d);
   }, []);
+
+  const undoFiles = useCallback(
+    async (paths: string[]) => {
+      if (!thread) return;
+      await api.undo(thread.id, paths);
+      showToast(`已撤销 ${paths.length} 个文件的变更`);
+    },
+    [thread]
+  );
+
+  const setFeedback = useCallback(
+    async (eventId: string, v: "up" | "down") => {
+      if (!thread) return;
+      await api.feedback(thread.id, eventId, v);
+      setBlocks((b) => b.map((x) => (x.kind === "agent_message" && x.id === eventId ? { ...x, feedback: x.feedback === v ? undefined : v } : x)));
+    },
+    [thread]
+  );
 
   const saveSettings = useCallback(
     async (patch: Partial<Settings>) => {
@@ -308,7 +379,42 @@ export default function App() {
     [thread]
   );
 
-  // shortcuts
+  const patchThread = useCallback(
+    async (patch: Partial<ThreadMeta>) => {
+      if (!thread) return;
+      const upd = await api.updateThread(thread.id, patch);
+      setThread(upd);
+      setThreads((ts) => ts.map((t) => (t.id === upd.id ? { ...t, ...upd } : t)));
+    },
+    [thread]
+  );
+
+  const openSideChat = useCallback(async () => {
+    if (!thread) return;
+    const side = await api.sideChat(thread.id);
+    setThreads((ts) => [side, ...ts]);
+    await openThread(side);
+    showToast("侧边聊天已创建");
+  }, [thread, openThread]);
+
+  const openFork = useCallback(async () => {
+    if (!thread) return;
+    const forked = await api.forkThread(thread.id);
+    setThreads((ts) => [forked, ...ts]);
+    await openThread(forked);
+    showToast("已 Fork 到新对话");
+  }, [thread, openThread]);
+
+  const addSchedule = useCallback(async () => {
+    if (!thread) return;
+    const p = prompt("计划任务内容（到点自动发给 Codex）：");
+    if (!p) return;
+    const every = Number(prompt("间隔分钟数？", "60")) || 60;
+    await api.schedule(thread.id, p, every);
+    setRefreshToken((r) => r + 1);
+    showToast(`已添加计划任务，每 ${every} 分钟执行`);
+  }, [thread]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -317,6 +423,11 @@ export default function App() {
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
         newChat();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        if (thread) {
+          e.preventDefault();
+          openSideChat();
+        }
       } else if (e.key === "Escape") {
         setPaletteOpen(false);
         setSettingsOpen(false);
@@ -324,23 +435,27 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [newChat]);
+  }, [newChat, thread, openSideChat]);
 
   const paletteActions = useMemo(
     () => [
       { id: "new", label: "New chat", hint: "⌘N", icon: null as any, run: () => newChat() },
+      { id: "side", label: "新建侧边聊天", hint: "⌘S", icon: null as any, run: () => openSideChat() },
+      { id: "summary", label: summaryOpen ? "关闭摘要面板" : "打开摘要面板", hint: "", icon: null as any, run: () => setSummaryOpen((v) => !v) },
       { id: "theme", label: `Toggle theme (currently ${settings?.theme || "dark"})`, hint: "", icon: null as any, run: () => saveSettings({ theme: settings?.theme === "dark" ? "light" : "dark" }) },
       { id: "settings", label: "Open settings", hint: "", icon: null as any, run: () => setSettingsOpen(true) },
       { id: "panel", label: panelOpen ? "Close side panel" : "Open side panel", hint: "", icon: null as any, run: () => setPanelOpen((v) => !v) },
       { id: "project", label: "New project", hint: "", icon: null as any, run: () => createProject() },
     ],
-    [newChat, settings, saveSettings, panelOpen, createProject]
+    [newChat, openSideChat, summaryOpen, settings, saveSettings, panelOpen, createProject]
   );
 
   if (!settings) return <div style={{ display: "grid", placeItems: "center", height: "100vh" }}><span className="spinner" /></div>;
 
   const modelForThread = (thread?.model || settings.model)!;
   const modeForThread = (thread?.approvalMode || settings.approvalMode)!;
+  const grouped = groupBlocks(blocks);
+  const childChats = thread ? threads.filter((t) => t.sideOf === thread.id) : [];
 
   return (
     <div className="shell">
@@ -354,15 +469,20 @@ export default function App() {
           <IconPanel size={14} />
         </button>
         <div className="app-title">
-          {thread?.title || (thread ? "New chat" : "OpenCodex IDE")}
+          {thread?.title || (railView !== "chat" ? railView : "OpenCodex IDE")}
           {running ? " — running…" : ""}
         </div>
+        <button className="icon-btn" title="摘要面板" onClick={() => setSummaryOpen(!summaryOpen)} style={summaryOpen ? { color: "var(--text)", background: "var(--sel)" } : undefined}>
+          <IconSummary size={14} />
+        </button>
         <button className="icon-btn" title="Side panel" onClick={() => setPanelOpen(!panelOpen)} style={panelOpen ? { color: "var(--text)" } : undefined}>
           <IconPanel size={14} style={{ transform: "scaleX(-1)" }} />
         </button>
       </div>
 
       <div className="body-row">
+        <NavRail view={railView === "chat" ? "home" : (railView as RailView)} onView={(v) => setRailView(v)} onSettings={() => setSettingsOpen(true)} />
+
         <Sidebar
           projects={projects}
           currentProject={project ?? undefined}
@@ -370,6 +490,7 @@ export default function App() {
             setProject(p);
             setThread(null);
             setBlocks([]);
+            setRailView("chat");
           }}
           onCreateProject={createProject}
           threads={threads}
@@ -383,17 +504,68 @@ export default function App() {
 
         <main className="main">
           <div className="main-top">
+            {thread && (
+              <ThreadMenu
+                thread={thread}
+                onRename={async () => {
+                  const v = prompt("重命名对话：", thread.title);
+                  if (v) patchThread({ title: v });
+                }}
+                onPin={() => patchThread({ pinned: !thread.pinned })}
+                onSideChat={openSideChat}
+                onContinue={() => send("继续上次未完成的工作。")}
+                onFork={openFork}
+                onSchedule={addSchedule}
+                onShare={() => {
+                  navigator.clipboard.writeText(`${location.origin}${location.pathname}?thread=${thread.id}`);
+                  showToast("分享链接已复制");
+                }}
+                onCopyTranscript={() => {
+                  navigator.clipboard.writeText(blocks.filter((b) => b.kind === "prompt" || b.kind === "agent_message").map((b: any) => (b.kind === "prompt" ? `> ${b.text}` : b.text)).join("\n\n"));
+                  showToast("对话已复制");
+                }}
+                onOpenWindow={() => window.open(`${location.origin}${location.pathname}?thread=${thread.id}`, "_blank")}
+                onArchive={async () => {
+                  await patchThread({ archived: !thread.archived });
+                  if (!thread.archived) newChat();
+                }}
+              />
+            )}
             <button className="icon-btn" title="New chat" onClick={newChat}>
-              <IconChevron size={14} dir="right" style={{ transform: "rotate(90deg)" }} />
+              <IconPlus size={14} />
             </button>
             <span className="mt-title">{thread?.title || "New chat"}</span>
+            {thread?.pinned && <span className="mt-badge">📌 置顶</span>}
             <span className="mt-badge">{models.find((m) => m.id === modelForThread)?.name || modelForThread}</span>
             {modeForThread !== "auto" && <span className="mt-badge" style={{ color: "var(--accent-strong)" }}>⚠ {modeForThread}</span>}
+            {(thread?.scheduled?.length ?? 0) > 0 && <span className="mt-badge">⏰ {thread!.scheduled!.length}</span>}
           </div>
 
-          {!thread && blocks.length === 0 ? (
+          {childChats.length > 0 && (
+            <div className="side-chips">
+              <span className="sc-label">侧边聊天：</span>
+              {childChats.map((c) => (
+                <button key={c.id} className={`sc-chip ${thread?.id === c.id ? "active" : ""}`} onClick={() => openThread(c)}>
+                  ↳ {c.title}
+                </button>
+              ))}
+            </div>
+          )}
+          {thread?.sideOf && (
+            <div className="side-chips">
+              <button className="sc-chip" onClick={async () => {
+                const parent = threads.find((t) => t.id === thread.sideOf) || (await api.thread(thread.sideOf!));
+                openThread(parent as ThreadMeta);
+              }}>
+                ← 返回父对话
+              </button>
+            </div>
+          )}
+
+          {railView === "artifacts" || railView === "history" || railView === "projects" || railView === "agents" || railView === "more" ? (
+            <RailPage view={railView} threads={allThreads} onOpenThread={openThread} onCreateProject={createProject} projects={projects} onProject={(p) => { setProject(p); setRailView("chat"); }} />
+          ) : !thread && blocks.length === 0 ? (
             <div className="landing">
-              <div className="big-logo">OC</div>
               <h1>Where should Codex work?</h1>
               <div style={{ width: "100%", maxWidth: 680 }}>
                 <Composer
@@ -421,19 +593,23 @@ export default function App() {
             </div>
           ) : (
             <>
-              <div className="thread-scroll" ref={scrollRef}>
+              <div className="thread-scroll" ref={scrollRef} onScroll={onScroll}>
                 <div className="thread-inner">
-                  {blocks.map((b, i) =>
-                    b.kind === "prompt" ? (
-                      <React.Fragment key={i}>
-                        <BlockView block={b} />
-                      </React.Fragment>
-                    ) : (
-                      <div className="agent-col" key={i}>
-                        <BlockView block={b} onApprove={approve} />
-                      </div>
-                    )
-                  )}
+                  {grouped.map((b, i) => (
+                    <div key={i} id={`blk-${i}`}>
+                      <BlockView
+                        block={b}
+                        onApprove={approve}
+                        onUndoFiles={undoFiles}
+                        onViewChanges={() => { setPanelOpen(true); }}
+                        onOpenCanvas={setCanvasPath}
+                        onOpenPreview={(url, path) => { setPreview({ url, path }); setPanelOpen(true); }}
+                        onOpenWindow={(url) => window.open(url, "_blank")}
+                        threadId={thread?.id}
+                        onFeedback={setFeedback}
+                      />
+                    </div>
+                  ))}
                   {running && blocks[blocks.length - 1]?.kind !== "agent_message" && (
                     <div className="thinking-row">
                       <span className="thinking-dots"><i /><i /><i /></span>
@@ -442,6 +618,11 @@ export default function App() {
                   )}
                 </div>
               </div>
+              {!atBottom && (
+                <button className="scroll-bottom" onClick={jumpBottom} title="回到底部">
+                  <IconArrowDown size={16} />
+                </button>
+              )}
               <div className="composer-wrap">
                 <div className="composer-inner">
                   <Composer
@@ -455,14 +636,34 @@ export default function App() {
                     approvalMode={modeForThread}
                     onApprovalMode={setThreadMode}
                   />
-                  <div className="composer-hint">OpenCodex can make mistakes. Check important info. · ⌘K for commands</div>
+                  <div className="composer-hint">OpenCodex can make mistakes. Check important info. · ⌘K commands · ⌘S side chat</div>
                 </div>
               </div>
             </>
           )}
         </main>
 
-        {panelOpen && project && <SidePanel project={project} onClose={() => setPanelOpen(false)} refreshToken={refreshToken} />}
+        {summaryOpen && thread && (
+          <SummaryPanel
+            thread={thread}
+            blocks={grouped}
+            onClose={() => setSummaryOpen(false)}
+            onJump={(i) => { setRailView("chat"); jumpTo(i); }}
+            onOpenPreview={(url, path) => { setPreview({ url, path }); setPanelOpen(true); }}
+            onRemoveSchedule={async (taskId) => { await api.unschedule(thread.id, taskId); const full = await api.thread(thread.id); setThread(full); setRefreshToken((r) => r + 1); }}
+          />
+        )}
+
+        {panelOpen && project && (
+          <SidePanel
+            project={project}
+            onClose={() => setPanelOpen(false)}
+            refreshToken={refreshToken}
+            preview={preview}
+            canvasPath={canvasPath}
+            onOpenCanvas={setCanvasPath}
+          />
+        )}
       </div>
 
       {settingsOpen && (
@@ -485,6 +686,93 @@ export default function App() {
       )}
 
       {toast && <div className="toast">{toast}</div>}
+    </div>
+  );
+}
+
+function RailPage({ view, threads, onOpenThread, onCreateProject, projects, onProject }: {
+  view: RailView;
+  threads: ThreadMeta[];
+  onOpenThread: (t: ThreadMeta) => void;
+  onCreateProject: () => void;
+  projects: Project[];
+  onProject: (p: Project) => void;
+}) {
+  const [artifacts, setArtifacts] = useState<{ path: string; threadId: string; threadTitle: string; ts: number }[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (view !== "artifacts") return;
+    setLoading(true);
+    (async () => {
+      const out: typeof artifacts = [];
+      for (const t of threads) {
+        try {
+          const full = await api.thread(t.id);
+          for (const ev of full.events || []) {
+            if (ev.type === "file_change") out.push({ path: ev.path, threadId: t.id, threadTitle: t.title || "chat", ts: ev.ts });
+          }
+        } catch {}
+      }
+      out.sort((a, b) => b.ts - a.ts);
+      setArtifacts(out);
+      setLoading(false);
+    })();
+  }, [view, threads]);
+
+  return (
+    <div className="rail-page">
+      <h2>{view === "artifacts" ? "Artifacts · 产物" : view === "history" ? "History · 全部对话" : view === "projects" ? "Projects · 项目" : view === "agents" ? "Agents" : "Apps"}</h2>
+      {view === "artifacts" && (
+        loading ? <div className="sp-empty">loading…</div> : artifacts.length === 0 ? <div className="sp-empty">还没有产物。让 Codex 写点东西吧。</div> : (
+          <div className="rp-list">
+            {artifacts.map((a, i) => (
+              <button key={i} className="rp-item" onClick={() => { const t = threads.find((x) => x.id === a.threadId); if (t) onOpenThread(t); }}>
+                <span style={{ flex: 1, fontFamily: "var(--mono)", fontSize: 13 }}>{a.path}</span>
+                <span className="rp-sub">{a.threadTitle} · {new Date(a.ts).toLocaleDateString()}</span>
+              </button>
+            ))}
+          </div>
+        )
+      )}
+      {view === "history" && (
+        <div className="rp-list">
+          {threads.map((t) => (
+            <button key={t.id} className="rp-item" onClick={() => onOpenThread(t)}>
+              <span style={{ flex: 1 }}>{t.title || "New chat"}{t.archived ? " (archived)" : ""}</span>
+              <span className="rp-sub">{new Date(t.updatedAt).toLocaleString()}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {view === "projects" && (
+        <div className="rp-list">
+          {projects.map((p) => (
+            <button key={p.id} className="rp-item" onClick={() => onProject(p)}>
+              <span style={{ flex: 1 }}>{p.name}</span>
+              <span className="rp-sub" style={{ fontFamily: "var(--mono)" }}>{p.path}</span>
+            </button>
+          ))}
+          <button className="rp-item" onClick={onCreateProject}>＋ New project</button>
+        </div>
+      )}
+      {view === "agents" && (
+        <div className="rp-list">
+          <div className="rp-item" style={{ cursor: "default" }}>
+            <span style={{ flex: 1 }}>Codex (built-in agent)</span>
+            <span className="rp-sub">active · tool-calling loop over your workspace</span>
+          </div>
+          <div className="rp-item" style={{ cursor: "default", opacity: 0.6 }}>
+            <span style={{ flex: 1 }}>More agents</span>
+            <span className="rp-sub">roadmap — PRs welcome</span>
+          </div>
+        </div>
+      )}
+      {view === "more" && (
+        <div className="sp-empty">
+          Desktop ports for Windows &amp; macOS are on the roadmap — fork the repo and wrap this UI in Tauri/Electron. See README “Fork it”.
+        </div>
+      )}
     </div>
   );
 }
