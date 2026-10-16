@@ -179,7 +179,11 @@ export default function App() {
     switch (ev.type) {
       case "turn_started":
         setRunning(true);
-        setBlocks((b) => [...b, { kind: "prompt", text: ev.prompt }]);
+        setBlocks((b) => {
+          const last = b[b.length - 1];
+          if (last && last.kind === "prompt" && last.text === ev.prompt) return b;
+          return [...b, { kind: "prompt", text: ev.prompt }];
+        });
         break;
       case "plan":
         setBlocks((b) => [...b, { kind: "plan", id: ev.id, items: ev.items }]);
@@ -323,6 +327,7 @@ export default function App() {
       const created = t;
       await openThread(created);
       setInput("");
+      setBlocks((b) => [...b, { kind: "prompt", text }]);
       await api.prompt(created.id, text);
     },
     [thread, project, openThread]
@@ -601,7 +606,7 @@ export default function App() {
             <RailPage view={railView} threads={allThreads} onOpenThread={openThread} onCreateProject={createProject} projects={projects} onProject={(p) => { setProject(p); setRailView("chat"); }} />
           ) : !thread && blocks.length === 0 ? (
             <div className="landing">
-              <h1>Where should Codex work?</h1>
+              <h1>Where should OpenCodex work?</h1>
               <div style={{ width: "100%", maxWidth: 680 }}>
                 <Composer
                   value={input}
@@ -613,7 +618,7 @@ export default function App() {
                   onModel={setThreadModel}
                   approvalMode={modeForThread}
                   onApprovalMode={setThreadMode}
-                  placeholder={`Ask ${project?.name || "Codex"} to do something…`}
+                  placeholder={`Ask ${project?.name || "OpenCodex"} to do something…`}
                   autoFocus
                 />
                 <div className="composer-hint">OpenCodex can make mistakes. Check important info.</div>

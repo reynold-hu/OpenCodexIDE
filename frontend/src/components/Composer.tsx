@@ -94,7 +94,7 @@ export function Composer({
         ref={ta}
         rows={1}
         value={value}
-        placeholder={placeholder || "Ask Codex anything…"}
+        placeholder={placeholder || "Ask OpenCodex anything…"}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
