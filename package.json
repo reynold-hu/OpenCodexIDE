@@ -1,0 +1,19 @@
+{
+  "name": "open-codex-ide",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "setup": "npm --prefix backend install && npm --prefix frontend install",
+    "dev": "npm run dev:backend & npm run dev:frontend & wait",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "start:backend": "npm --prefix backend start",
+    "build": "npm --prefix frontend run build"
+  },
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reynold-hu/OpenCodexIDE.git"
+  },
+  "author": "reynold-hu"
+}

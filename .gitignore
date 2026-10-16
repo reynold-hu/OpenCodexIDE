@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.vite/
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+certs/
+coverage/
+*.tsbuildinfo

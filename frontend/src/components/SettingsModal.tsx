@@ -1,0 +1,197 @@
+import React, { useState } from "react";
+import type { ApprovalMode, ModelInfo, ProviderInfo, Settings } from "../types";
+import { IconX } from "../icons";
+import { api } from "../api";
+
+export function SettingsModal({
+  settings,
+  models,
+  providers,
+  onChange,
+  onClose,
+  onReset,
+}: {
+  settings: Settings;
+  models: ModelInfo[];
+  providers: ProviderInfo[];
+  onChange: (patch: Partial<Settings>) => void;
+  onClose: () => void;
+  onReset: () => void;
+}) {
+  const active = providers.find((p) => p.id === settings.provider) || providers[0];
+  const conf = (settings.providers || {})[settings.provider] || {};
+  const [keyDraft, setKeyDraft] = useState("");
+  const [syncMsg, setSyncMsg] = useState("");
+
+  const patchActive = (p: Record<string, unknown>) => {
+    onChange({ providers: { [settings.provider]: p } } as Partial<Settings>);
+  };
+
+  return (
+    <div className="overlay" onMouseDown={onClose}>
+      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h2>Settings</h2>
+          <button className="icon-btn" onClick={onClose}>
+            <IconX size={15} />
+          </button>
+        </div>
+        <div className="modal-body">
+          <div className="menu-label" style={{ padding: "10px 0 4px" }}>MODEL PROVIDER</div>
+          <div className="set-row">
+            <div className="sr-label">
+              <div className="sr-title">Provider</div>
+              <div className="sr-desc">opencode-style: any OpenAI-compatible backend (DeepSeek, Qwen, Kimi, GLM, OpenRouter, Ollama…)</div>
+            </div>
+            <select className="select-like" value={settings.provider} onChange={(e) => onChange({ provider: e.target.value })}>
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {settings.provider !== "simulated" && (
+            <>
+              <div className="set-row">
+                <div className="sr-label">
+                  <div className="sr-title">API key {active.hasKey ? "(set — leave blank to keep)" : ""}</div>
+                  <div className="sr-desc">Stored only in ~/.open-codex-ide/state.json on this machine</div>
+                </div>
+                <input
+                  className="select-like"
+                  style={{ width: 220 }}
+                  type="password"
+                  placeholder={active.hasKey ? "••••••••" : "sk-…"}
+                  value={keyDraft}
+                  onChange={(e) => setKeyDraft(e.target.value)}
+                  onBlur={() => {
+                    if (keyDraft) {
+                      patchActive({ apiKey: keyDraft });
+                      setKeyDraft("");
+                    }
+                  }}
+                />
+              </div>
+              <div className="set-row">
+                <div className="sr-label">
+                  <div className="sr-title">Base URL</div>
+                  <div className="sr-desc">{active.defaultBaseUrl || "https://api.example.com/v1"}</div>
+                </div>
+                <input
+                  className="select-like"
+                  style={{ width: 220 }}
+                  placeholder={active.defaultBaseUrl || ""}
+                  defaultValue={conf.baseUrl || ""}
+                  onBlur={(e) => {
+                    if (e.target.value !== (conf.baseUrl || "")) patchActive({ baseUrl: e.target.value });
+                  }}
+                />
+              </div>
+              <div className="set-row">
+                <div className="sr-label">
+                  <div className="sr-title">Model</div>
+                  <div className="sr-desc">Current: {active.model || settings.model}</div>
+                </div>
+                <input
+                  className="select-like"
+                  style={{ width: 220 }}
+                  placeholder={active.models[0] || "model-name"}
+                  defaultValue={conf.model || ""}
+                  onBlur={(e) => {
+                    if (e.target.value) patchActive({ model: e.target.value, models: Array.from(new Set([...(active.models || []), e.target.value])) });
+                  }}
+                />
+                <button
+                  className="btn"
+                  onClick={async () => {
+                    setSyncMsg("syncing…");
+                    try {
+                      const r = await api.providerModels(settings.provider);
+                      patchActive({ models: r.models });
+                      setSyncMsg(`✓ ${r.models.length} models`);
+                    } catch (err: any) {
+                      setSyncMsg(`✗ ${String(err?.message || err).slice(0, 60)}`);
+                    }
+                    setTimeout(() => setSyncMsg(""), 3000);
+                  }}
+                >
+                  Sync
+                </button>
+              </div>
+              {syncMsg && <div className="set-row" style={{ color: "var(--muted)", fontSize: 12 }}>{syncMsg}</div>}
+            </>
+          )}
+
+          <div className="menu-label" style={{ padding: "14px 0 4px" }}>GENERAL</div>
+          <div className="set-row">
+            <div className="sr-label">
+              <div className="sr-title">Appearance</div>
+              <div className="sr-desc">Choose how OpenCodex looks</div>
+            </div>
+            <div className="segmented">
+              {(["dark", "light", "system"] as const).map((t) => (
+                <button key={t} className={settings.theme === t ? "on" : ""} onClick={() => onChange({ theme: t })}>
+                  {t[0].toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="set-row">
+            <div className="sr-label">
+              <div className="sr-title">Default model</div>
+              <div className="sr-desc">Used for new chats</div>
+            </div>
+            <select className="select-like" value={settings.model} onChange={(e) => onChange({ model: e.target.value })}>
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="set-row">
+            <div className="sr-label">
+              <div className="sr-title">Approval mode</div>
+              <div className="sr-desc">How Codex runs commands in your workspace</div>
+            </div>
+            <select className="select-like" value={settings.approvalMode} onChange={(e) => onChange({ approvalMode: e.target.value as ApprovalMode })}>
+              <option value="auto">Auto</option>
+              <option value="ask">Ask for approvals</option>
+              <option value="read-only">Read-only</option>
+            </select>
+          </div>
+
+          <div className="set-row">
+            <div className="sr-label">
+              <div className="sr-title">Notification sounds</div>
+              <div className="sr-desc">Play a chime when a task finishes</div>
+            </div>
+            <button className={`switch ${settings.sounds ? "on" : ""}`} onClick={() => onChange({ sounds: !settings.sounds })} />
+          </div>
+
+          <div className="set-row">
+            <div className="sr-label">
+              <div className="sr-title">Account</div>
+              <div className="sr-desc">{settings.account.email}</div>
+            </div>
+            <span className="avatar">{(settings.account.name || "U")[0].toUpperCase()}</span>
+          </div>
+
+          <div className="set-row">
+            <div className="sr-label">
+              <div className="sr-title">Reset all data</div>
+              <div className="sr-desc">Delete chats and settings (workspaces stay on disk)</div>
+            </div>
+            <button className="btn" style={{ color: "var(--accent-strong)" }} onClick={onReset}>
+              Reset
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

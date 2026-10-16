@@ -1,0 +1,192 @@
+import React, { useCallback, useEffect, useState } from "react";
+import { api } from "../api";
+import type { Project } from "../types";
+import { IconX, IconFile, IconFolder } from "../icons";
+
+type Tab = "review" | "files" | "terminal";
+
+export function SidePanel({ project, onClose, refreshToken }: { project: Project; onClose: () => void; refreshToken: number }) {
+  const [tab, setTab] = useState<Tab>("review");
+  const [changes, setChanges] = useState<{ file: string; kind: string }[]>([]);
+  const [diff, setDiff] = useState("");
+  const [treeFiles, setTreeFiles] = useState<{ name: string; path: string; dir: boolean }[]>([]);
+  const [fileContent, setFileContent] = useState<{ path: string; content: string } | null>(null);
+  const [termHistory, setTermHistory] = useState<{ cmd: string; out: string; code: number }[]>([]);
+  const [termInput, setTermInput] = useState("");
+  const [commitMsg, setCommitMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const refreshGit = useCallback(async () => {
+    try {
+      const r = await api.git(project.id);
+      setChanges(r.status);
+      setDiff(r.diff);
+    } catch {}
+  }, [project.id]);
+
+  const refreshTree = useCallback(async () => {
+    try {
+      setTreeFiles(await api.tree(project.id));
+    } catch {}
+  }, [project.id]);
+
+  useEffect(() => {
+    if (tab === "review") refreshGit();
+    if (tab === "files") refreshTree();
+  }, [tab, refreshToken, refreshGit, refreshTree, project.id]);
+
+  const runTerminal = async () => {
+    const cmd = termInput.trim();
+    if (!cmd || busy) return;
+    setBusy(true);
+    setTermInput("");
+    try {
+      const r = await api.terminal(project.id, cmd);
+      setTermHistory((h) => [...h, { cmd, out: (r.stdout + (r.stderr ? `\n${r.stderr}` : "")).trim(), code: r.code }]);
+    } catch (e: any) {
+      setTermHistory((h) => [...h, { cmd, out: String(e?.message || e), code: 1 }]);
+    }
+    setBusy(false);
+  };
+
+  const openFile = async (p: string) => {
+    try {
+      const f = await api.file(project.id, p);
+      setFileContent({ path: p, content: f.truncated ? `[file too large: ${f.size} bytes]` : f.content });
+    } catch (e: any) {
+      setFileContent({ path: p, content: `Error: ${e?.message}` });
+    }
+  };
+
+  return (
+    <aside className="side-panel">
+      <div className="sp-tabs">
+        {(["review", "files", "terminal"] as Tab[]).map((t) => (
+          <button key={t} className={`sp-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
+            {t[0].toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+        <span className="grow" />
+        <button className="icon-btn" onClick={onClose} title="Close panel">
+          <IconX size={14} />
+        </button>
+      </div>
+
+      <div className="sp-body">
+        {tab === "review" && (
+          <>
+            {changes.length === 0 && !diff ? (
+              <div className="sp-empty">No pending changes — working tree is clean.</div>
+            ) : (
+              <>
+                <div className="git-actions">
+                  <input
+                    className="select-like"
+                    style={{ flex: 1, minWidth: 0 }}
+                    placeholder="Commit message…"
+                    value={commitMsg}
+                    onChange={(e) => setCommitMsg(e.target.value)}
+                  />
+                  <button
+                    className="btn primary"
+                    disabled={busy || changes.length === 0}
+                    onClick={async () => {
+                      setBusy(true);
+                      try {
+                        await api.commit(project.id, commitMsg || "OpenCodex changes");
+                        setCommitMsg("");
+                        await refreshGit();
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  >
+                    Commit
+                  </button>
+                </div>
+                {changes.map((c, i) => (
+                  <div key={i} className="git-file-row">
+                    <span className={`git-kind ${c.kind}`}>{c.kind === "added" || c.kind === "untracked" ? "A" : c.kind === "deleted" ? "D" : "M"}</span>
+                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{c.file}</span>
+                  </div>
+                ))}
+                {diff && (
+                  <pre className="diff" style={{ marginTop: 10 }}>
+                    {diff.split("\n").map((l, i) => {
+                      let cls = "ctx";
+                      if (l.startsWith("+++") || l.startsWith("---") || l.startsWith("diff ")) cls = "file";
+                      else if (l.startsWith("@@")) cls = "hunk";
+                      else if (l.startsWith("+")) cls = "add";
+                      else if (l.startsWith("-")) cls = "del";
+                      return (
+                        <span key={i} className={cls}>
+                          {l || " "}
+                          {"\n"}
+                        </span>
+                      );
+                    })}
+                  </pre>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {tab === "files" && (
+          <>
+            {fileContent ? (
+              <>
+                <div className="git-file-row" style={{ marginBottom: 8 }}>
+                  <IconFile size={13} />
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{fileContent.path}</span>
+                  <button className="icon-btn" onClick={() => setFileContent(null)}><IconX size={13} /></button>
+                </div>
+                <pre className="diff" style={{ maxHeight: "none" }}>{fileContent.content}</pre>
+              </>
+            ) : (
+              treeFiles.slice(0, 300).map((f) => (
+                <div
+                  key={f.path}
+                  className="file-row"
+                  style={{ paddingLeft: 8 + depthOf(f.path) * 12 }}
+                  onClick={() => !f.dir && openFile(f.path)}
+                >
+                  {f.dir ? <IconFolder size={13} style={{ color: "var(--faint)" }} /> : <IconFile size={13} style={{ color: "var(--faint)" }} />}
+                  <span className="fr-name">{f.name}</span>
+                </div>
+              ))
+            )}
+          </>
+        )}
+
+        {tab === "terminal" && (
+          <>
+            <div className="term-console">
+              {termHistory.map((h, i) => (
+                <div className="term-entry" key={i}>
+                  <div className="term-cmd"><span className="dollar">$ </span>{h.cmd}</div>
+                  {h.out && <div className="term-out">{h.out}</div>}
+                  <div className={`term-exit ${h.code ? "fail" : ""}`}>{h.code ? `exit ${h.code}` : ""}</div>
+                </div>
+              ))}
+              {termHistory.length === 0 && <div className="sp-empty">Run a shell command in the workspace…</div>}
+            </div>
+            <div className="term-input-row">
+              <span className="dollar">$</span>
+              <input
+                value={termInput}
+                placeholder={busy ? "running…" : `${project.name} $`}
+                onChange={(e) => setTermInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && runTerminal()}
+              />
+            </div>
+          </>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function depthOf(p: string) {
+  return p.split("/").length - 1;
+}
