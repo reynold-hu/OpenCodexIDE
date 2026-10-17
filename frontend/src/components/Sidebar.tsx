@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { api } from "../api";
 import type { Project, ThreadMeta } from "../types";
 import { IconPlus, IconSearch, IconGear, IconTrash, IconFolder, IconChevron } from "../icons";
 
@@ -41,11 +42,18 @@ export function Sidebar({
 }) {
   const [search, setSearch] = useState("");
   const [projOpen, setProjOpen] = useState(false);
+  const [hits, setHits] = useState<{ id: string; title: string; sample: string[] }[] | null>(null);
 
-  const filtered = useMemo(
-    () => threads.filter((t) => t.title.toLowerCase().includes(search.toLowerCase())),
-    [threads, search]
-  );
+  useEffect(() => {
+    if (search.trim().length < 2) { setHits(null); return; }
+    const t = setTimeout(() => api.search(search.trim()).then((r) => setHits(r.map((h) => ({ id: h.id, title: h.title, sample: h.sample })))).catch(() => setHits(null)), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const filtered = useMemo(() => {
+    if (hits) return threads.filter((t) => hits.some((h) => h.id === t.id));
+    return threads.filter((t) => t.title.toLowerCase().includes(search.toLowerCase()));
+  }, [threads, search, hits]);
 
   const groups = useMemo(() => {
     const out: { label: string; items: ThreadMeta[] }[] = [];
@@ -130,7 +138,7 @@ export function Sidebar({
             {g.items.map((t) => (
               <div key={t.id} className={`thread-item ${t.id === currentThreadId ? "active" : ""}`} onClick={() => onThread(t)}>
                 <span className={`status-dot ${t.status === "running" ? "running" : "idle"}`} />
-                <span className="t-title">{t.title || "New chat"}</span>
+                <span className="t-title">{t.title || "New chat"}{hits && hits.find((h) => h.id === t.id)?.sample?.[0] ? <span className="t-hit">…{hits.find((h) => h.id === t.id)!.sample[0].slice(0, 24)}</span> : null}</span>
                 <button
                   className="t-del"
                   title="Delete"

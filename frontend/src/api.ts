@@ -39,5 +39,11 @@ export const api = {
   procLog: (projectId: string, pid: string) => fetch(`/api/projects/${projectId}/processes/${pid}/log`).then(j<{ log: string }>),
   outputs: () => fetch("/api/outputs").then(j<{ kind: "file" | "site"; path: string; url?: string; ts: number; thread: string; threadId: string }[]>),
   addSource: (threadId: string, url: string, title?: string) => fetch(`/api/threads/${threadId}/source`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url, title }) }).then(j<{ ok: boolean }>),
+  cancel: (threadId: string) => fetch(`/api/threads/${threadId}/cancel`, { method: "POST" }).then(j<{ ok: boolean }>),
+  search: (q: string) => fetch(`/api/search?q=${encodeURIComponent(q)}`).then(j<{ id: string; title: string; updatedAt: number; sample: string[] }[]>),
+  branches: (projectId: string) => fetch(`/api/projects/${projectId}/git/branches`).then(j<{ name: string; current: boolean }[]>),
+  checkout: (projectId: string, branch: string) => fetch(`/api/projects/${projectId}/git/checkout`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ branch }) }).then(j<{ ok: boolean }>),
+  diffFile: (projectId: string, path?: string) => fetch(`/api/projects/${projectId}/diff${path ? `?path=${encodeURIComponent(path)}` : ""}`).then(j<{ diff: string }>).then((r) => r.diff),
+  upload: (projectId: string, path: string, dataBase64: string) => fetch(`/api/projects/${projectId}/upload`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path, dataBase64 }) }).then(j<{ ok: boolean }>),
   streamUrl: (threadId: string) => `/api/threads/${threadId}/stream`,
 };

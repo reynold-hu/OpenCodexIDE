@@ -66,6 +66,20 @@ export class TurnBus {
 
 export const bus = new TurnBus();
 
+const activeTurns = new Map(); // threadId -> { aborted, child, llmAbort }
+
+export function cancelTurn(threadId) {
+  const t = activeTurns.get(threadId);
+  if (!t) return false;
+  t.aborted = true;
+  try { t.llmAbort?.abort(); } catch {}
+  try {
+    t.child?.kill("SIGTERM");
+    setTimeout(() => { try { t.child?.kill("SIGKILL"); } catch {} }, 1500);
+  } catch {}
+  return true;
+}
+
 function pushEvent(state, thread, event) {
   thread.events.push(event);
   bus.broadcast(thread.id, event);
@@ -97,7 +111,15 @@ async function runCommand(state, thread, cmd, opts = {}) {
     pushEvent(state, thread, { type: "command", id, cmd, status: "running", ts: Date.now() });
   }
   const t0 = Date.now();
-  const { code, stdout, stderr } = await shellExec(dir, cmd);
+  const turn = activeTurns.get(thread.id);
+  const ctl = turn || {};
+  const { code, stdout, stderr } = await shellExec(dir, cmd, 15000, (chunk) => {
+    bus.broadcast(thread.id, { type: "command_output", id, chunk: String(chunk).slice(0, 4000) });
+  }, ctl);
+  if (turn?.aborted) {
+    pushEvent(state, thread, { type: "command_result", id, code: 130, output: ((stdout || "") + "\n[cancelled]").slice(0, 20000), durationMs: Date.now() - t0, status: "failed", ts: Date.now() });
+    return { skipped: true, reason: "cancelled" };
+  }
   const dur = Date.now() - t0;
   const merged = (stdout + (stderr ? (stdout ? "\n" : "") + stderr : "")).slice(0, 20000);
   pushEvent(state, thread, { type: "command_result", id, code, output: merged, durationMs: dur, status: code === 0 ? "success" : "failed", ts: Date.now() });
@@ -109,6 +131,7 @@ async function streamMessage(state, thread, text, kind = "agent_message") {
   pushEvent(state, thread, { type: kind, id, content: "", done: false, ts: Date.now() });
   const chunkSize = 14;
   for (let i = 0; i < text.length; i += chunkSize) {
+    if (activeTurns.get(thread.id)?.aborted) break;
     await sleep(18);
     bus.broadcast(thread.id, { type: `${kind}_delta`, id, content: text.slice(i, i + chunkSize) });
   }
@@ -451,17 +474,18 @@ async function streamLLMAgentMessage(state, thread) {
   };
 }
 
-async function runTurnReal(state, thread, prompt, provider) {
+async function runTurnReal(state, thread, prompt, provider, dirIn, displayPrompt) {
   const project = threadProject(state, thread);
-  const dir = workspacePath(project);
+  const dir = dirIn || workspacePath(project);
   thread.status = "running";
-  pushEvent(state, thread, { type: "turn_started", prompt, ts: Date.now() });
+  pushEvent(state, thread, { type: "turn_started", prompt: displayPrompt || prompt, ts: Date.now() });
   await sleep(150);
 
   let planId = null;
   const history = transcriptFromEvents(thread.events.slice(0, -1));
   const messages = [
     { role: "system", content: REAL_SYSTEM_PROMPT(dir, project.name, provider.model) },
+    ...(thread.compactNote ? [{ role: "system", content: thread.compactNote }] : []),
     ...history,
     { role: "user", content: prompt },
   ];
@@ -545,14 +569,29 @@ async function runTurnReal(state, thread, prompt, provider) {
   };
 
   for (let step = 0; step < 15; step++) {
+    const turn = activeTurns.get(thread.id);
+    if (turn?.aborted) {
+      thread.status = "idle";
+      save();
+      return;
+    }
     const msg = await streamLLMAgentMessage(state, thread);
     let result;
     try {
+      const llmAbort = new AbortController();
+      if (turn) turn.llmAbort = llmAbort;
       result = await chatStream(
         { baseUrl: provider.baseUrl, apiKey: provider.apiKey, model: provider.model, messages, tools: AGENT_TOOLS },
-        msg.onDelta
+        msg.onDelta,
+        llmAbort.signal
       );
     } catch (e) {
+      if (e.name === "AbortError" || activeTurns.get(thread.id)?.aborted) {
+        msg.finish("");
+        thread.status = "idle";
+        save();
+        return;
+      }
       msg.finish(`⚠️ ${e.message}`);
       bus.broadcast(thread.id, { type: "turn_error", message: e.message });
       thread.status = "idle";
@@ -583,26 +622,99 @@ async function runTurnReal(state, thread, prompt, provider) {
 }
 
 
+async function expandMentions(dir, prompt) {
+  const mentions = [...prompt.matchAll(/@([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,8})/g)].map((m) => m[1]);
+  if (!mentions.length) return prompt;
+  let extra = "";
+  for (const rel of mentions.slice(0, 6)) {
+    try {
+      const f = readFileLimited(dir, rel);
+      if (!f.truncated) extra += `\n\n[context @${rel}]\n\`\`\`\n${f.content.slice(0, 8000)}\n\`\`\``;
+      else extra += `\n\n[context @${rel}: file too large (${f.size} bytes)]`;
+    } catch {
+      extra += `\n\n[context @${rel}: not found]`;
+    }
+  }
+  return prompt + extra;
+}
+
+async function runSlashCommand(state, thread, dir, prompt) {
+  const [cmd, ...rest] = prompt.trim().split(/\s+/);
+  const name = cmd.toLowerCase();
+  if (name === "/status") {
+    pushEvent(state, thread, { type: "turn_started", prompt, ts: Date.now() });
+    const changes = await gitStatus(dir);
+    const files = tree(dir, ".", 2).filter((f) => !f.dir).length;
+    await streamMessage(state, thread, `**工作区状态**\n\n- 文件数:${files}\n- 未提交变更:${changes.length ? changes.map((c) => `\`${c.file}\``).join(", ") : "无"}\n- 模型:${thread.model || state.settings.model} · 审批:${thread.approvalMode || state.settings.approvalMode}`);
+    pushEvent(state, thread, { type: "turn_complete", ts: Date.now() });
+    return true;
+  }
+  if (name === "/model" && rest[0]) {
+    pushEvent(state, thread, { type: "turn_started", prompt, ts: Date.now() });
+    thread.model = rest[0];
+    await streamMessage(state, thread, `已切换模型为 \`${rest[0]}\`。`);
+    pushEvent(state, thread, { type: "turn_complete", ts: Date.now() });
+    return true;
+  }
+  if (name === "/init") {
+    pushEvent(state, thread, { type: "turn_started", prompt, ts: Date.now() });
+    const existing = tree(dir, ".", 1).some((f) => f.name === "AGENTS.md");
+    if (existing) {
+      await streamMessage(state, thread, "`AGENTS.md` 已存在,未覆盖。");
+    } else {
+      await gateFileChange(state, thread, dir, "AGENTS.md", `# ${thread.title || "Project"}\n\n## Conventions\n- 语言/框架:\n- 测试命令:\n- 代码风格:\n\n## Notes\n\n(由 OpenCodex /init 生成,请补充)\n`);
+      await streamMessage(state, thread, "已创建 `AGENTS.md` 骨架,填入项目约定后 agent 会遵守它们。");
+    }
+    pushEvent(state, thread, { type: "turn_complete", ts: Date.now() });
+    return true;
+  }
+  if (name === "/compact") {
+    pushEvent(state, thread, { type: "turn_started", prompt, ts: Date.now() });
+    const msgs = transcriptFromEvents(thread.events.slice(0, -1), 40);
+    const digest = msgs.map((m) => `${m.role}: ${String(m.content).slice(0, 200)}`).join("\n").slice(0, 3000);
+    thread.compactNote = `Earlier conversation summary:\n${digest}`;
+    await streamMessage(state, thread, "已压缩上下文:较早对话将以内置摘要形式携带,后续请求更省 token。");
+    pushEvent(state, thread, { type: "turn_complete", ts: Date.now() });
+    return true;
+  }
+  return false;
+}
+
 export async function runTurn(state, thread, prompt) {
   const provider = effectiveProvider(state);
-  if (isRealProvider(provider)) {
-    return runTurnReal(state, thread, prompt, provider);
-  }
-  if (provider.id !== "simulated") {
-    thread.status = "running";
-    pushEvent(state, thread, { type: "turn_started", prompt, ts: Date.now() });
-    pushEvent(state, thread, { type: "turn_error", message: `Provider "${provider.label}" selected but API key or base URL is missing — configure it in Settings.`, ts: Date.now() });
-    thread.status = "idle";
-    return;
-  }
   const project = threadProject(state, thread);
   if (!project) throw new Error("no project");
   const dir = await ensureWorkspaceExists(state, project);
+
+  activeTurns.set(thread.id, { aborted: false, child: null, llmAbort: null });
+  try {
+    if (prompt.trim().startsWith("/")) {
+      const handled = await runSlashCommand(state, thread, dir, prompt);
+      if (handled) return;
+    }
+    const expanded = await expandMentions(dir, prompt);
+    if (isRealProvider(provider)) {
+      return await runTurnReal(state, thread, expanded, provider, dir, prompt);
+    }
+    if (provider.id !== "simulated") {
+      thread.status = "running";
+      pushEvent(state, thread, { type: "turn_started", prompt, ts: Date.now() });
+      pushEvent(state, thread, { type: "turn_error", message: `Provider "${provider.label}" selected but API key or base URL is missing — configure it in Settings.`, ts: Date.now() });
+      thread.status = "idle";
+      return;
+    }
+    return await runSimulatedTurn(state, thread, expanded, dir, prompt);
+  } finally {
+    activeTurns.delete(thread.id);
+  }
+}
+
+async function runSimulatedTurn(state, thread, prompt, dir, displayPrompt) {
   const task = detectTask(prompt);
   const planId = uid("plan");
 
   thread.status = "running";
-  pushEvent(state, thread, { type: "turn_started", prompt, ts: Date.now() });
+  pushEvent(state, thread, { type: "turn_started", prompt: displayPrompt || prompt, ts: Date.now() });
   await sleep(220);
 
   const plans = {
@@ -678,6 +790,10 @@ export async function runTurn(state, thread, prompt) {
     await streamMessage(state, thread, applied2 ? gen.summary : `You declined the change to \`${gen.file}\`. Tell me what to adjust and I'll retry.`);
   }
 
+  if (activeTurns.get(thread.id)?.aborted) {
+    thread.status = "idle";
+    return;
+  }
   thread.status = "idle";
   if (!thread.title) {
     thread.title = prompt.trim().slice(0, 42) || "New chat";

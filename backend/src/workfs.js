@@ -124,14 +124,58 @@ export async function revertPath(dir, rel) {
   return "noop";
 }
 
-export async function shellExec(dir, cmd, timeoutMs = 15000) {
+export async function shellExec(dir, cmd, timeoutMs = 15000, onChunk = null, ctl = null) {
+  const { spawn } = await import("node:child_process");
   return new Promise((resolve) => {
-    const child = execFileAsync("/bin/bash", ["-lc", cmd], { cwd: dir, timeout: timeoutMs, maxBuffer: 2 * 1024 * 1024 });
-    child
-      .then(({ stdout, stderr }) => resolve({ code: 0, stdout: stdout || "", stderr: stderr || "" }))
-      .catch((e) => {
-        const code = typeof e.code === "number" ? e.code : e.killed ? 124 : 1;
-        resolve({ code, stdout: (e.stdout || "") + "", stderr: (e.stderr || "") + (e.killed ? "\n[timeout]" : e.message ? `\n[${e.message}]` : "") });
-      });
+    const child = spawn("/bin/bash", ["-lc", cmd], { cwd: dir });
+    if (ctl) ctl.child = child;
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        try { child.kill("SIGKILL"); } catch {}
+        resolve({ code: 124, stdout, stderr: stderr + "\n[timeout]", killed: true });
+      }
+    }, timeoutMs);
+    child.stdout.on("data", (d) => {
+      const s = d.toString();
+      stdout += s;
+      if (onChunk && stdout.length < 200000) onChunk(s, false);
+    });
+    child.stderr.on("data", (d) => {
+      const s = d.toString();
+      stderr += s;
+      if (onChunk && stderr.length < 200000) onChunk(s, true);
+    });
+    child.on("error", (e) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve({ code: 1, stdout, stderr: stderr + e.message });
+      }
+    });
+    child.on("close", (code) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve({ code: code ?? 1, stdout, stderr });
+      }
+    });
   });
+}
+
+export function killChild(child) {
+  try {
+    child?.kill("SIGTERM");
+    setTimeout(() => { try { child?.kill("SIGKILL"); } catch {} }, 1500);
+  } catch {}
+}
+
+export function writeBinary(dir, rel, base64) {
+  const p = safeJoin(dir, rel);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, Buffer.from(base64, "base64"));
+  return rel;
 }

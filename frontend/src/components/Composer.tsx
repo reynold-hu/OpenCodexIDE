@@ -1,6 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { ApprovalMode, ModelInfo } from "../types";
-import { IconCheck, IconChevron, IconSend, IconStop, IconShield, IconBolt } from "../icons";
+import { IconCheck, IconChevron, IconSend, IconStop, IconShield, IconBolt, IconFile } from "../icons";
+import { api } from "../api";
+
+const SLASH_COMMANDS = [
+  { cmd: "/init", desc: "生成 AGENTS.md 项目约定" },
+  { cmd: "/status", desc: "查看工作区状态" },
+  { cmd: "/model ", desc: "切换模型,如 /model deepseek-chat" },
+  { cmd: "/compact", desc: "压缩较早上下文为摘要" },
+];
 
 const APPROVAL_MODES: { id: ApprovalMode; name: string; desc: string }[] = [
   { id: "auto", name: "Auto", desc: "Run commands without asking" },
@@ -38,6 +46,8 @@ export function Composer({
   onApprovalMode,
   placeholder,
   autoFocus,
+  projectId,
+  onStop,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -50,10 +60,48 @@ export function Composer({
   onApprovalMode: (m: ApprovalMode) => void;
   placeholder?: string;
   autoFocus?: boolean;
+  projectId?: string;
+  onStop?: () => void;
 }) {
   const [modelOpen, setModelOpen] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
+  const [files, setFiles] = useState<{ name: string; path: string; dir: boolean }[]>([]);
+  const [mentionQ, setMentionQ] = useState<string | null>(null);
+  const [slashOpen, setSlashOpen] = useState(false);
   const ta = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (projectId) api.tree(projectId).then(setFiles).catch(() => {});
+  }, [projectId]);
+
+  useEffect(() => {
+    if (value.startsWith("/")) setSlashOpen(SLASH_COMMANDS.some((c) => c.cmd.startsWith(value.split(" ")[0])));
+    else setSlashOpen(false);
+    const m = value.match(/@([\w./-]*)$/);
+    setMentionQ(m ? m[1].toLowerCase() : null);
+  }, [value]);
+
+  const pickMention = (path: string) => {
+    onChange(value.replace(/@([\w./-]*)$/, `@${path}`));
+    setMentionQ(null);
+    ta.current?.focus();
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const item = [...e.clipboardData.items].find((i) => i.type.startsWith("image/"));
+    if (!item || !projectId) return;
+    e.preventDefault();
+    const file = item.getAsFile();
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const b64 = String(reader.result || "");
+      const name = `uploads/pasted-${Date.now()}.png`;
+      await api.upload(projectId, name, b64);
+      onChange(`${value ? value + "\n" : ""}参考图片 @${name}\n`);
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     if (autoFocus) ta.current?.focus();
@@ -90,12 +138,14 @@ export function Composer({
 
   return (
     <div className="composer">
+      <div style={{ position: "relative" }}>
       <textarea
         ref={ta}
         rows={1}
         value={value}
         placeholder={placeholder || "Ask OpenCodex anything…"}
         onChange={(e) => onChange(e.target.value)}
+        onPaste={handlePaste}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -103,6 +153,27 @@ export function Composer({
           }
         }}
       />
+      {mentionQ !== null && (
+        <div className="ac-popup">
+          {files.filter((f) => !f.dir && f.path.toLowerCase().includes(mentionQ)).slice(0, 7).map((f) => (
+            <button key={f.path} className="ac-item" onMouseDown={(e) => { e.preventDefault(); pickMention(f.path); }}>
+              <IconFile size={12} /> <span>{f.path}</span>
+            </button>
+          ))}
+          {files.filter((f) => !f.dir && f.path.toLowerCase().includes(mentionQ)).length === 0 && <div className="ac-empty">无匹配文件</div>}
+        </div>
+      )}
+      {slashOpen && (
+        <div className="ac-popup">
+          {SLASH_COMMANDS.filter((c) => c.cmd.startsWith(value.split(" ")[0])).map((c) => (
+            <button key={c.cmd} className="ac-item" onMouseDown={(e) => { e.preventDefault(); onChange(c.cmd === "/model " ? "/model " : c.cmd + " "); }}>
+              <span style={{ fontFamily: "var(--mono)", color: "var(--accent)" }}>{c.cmd}</span>
+              <span className="ac-desc">{c.desc}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      </div>
       <div className="composer-bar">
         <label className="pill" title="Attach text file" style={{ cursor: "pointer" }}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
@@ -172,7 +243,7 @@ export function Composer({
 
         <span className="grow" />
         {running ? (
-          <button className="send-btn stop-btn" title="Running…">
+          <button className="send-btn stop-btn" title="停止" onClick={onStop}>
             <IconStop />
           </button>
         ) : (

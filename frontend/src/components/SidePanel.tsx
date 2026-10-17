@@ -56,6 +56,7 @@ export function SidePanel({
   const [termInput, setTermInput] = useState("");
   const [commitMsg, setCommitMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [diffFile, setDiffFile] = useState<string | null>(null);
 
   const refreshGit = useCallback(async () => {
     try {
@@ -146,9 +147,13 @@ export function SidePanel({
                   </button>
                 </div>
                 {changes.map((c, i) => (
-                  <div key={i} className="git-file-row">
+                  <div key={i} className="git-file-row" onClick={async () => {
+                    if (diffFile === c.file) { setDiffFile(null); setDiff(""); }
+                    else { setDiffFile(c.file); const d = await api.diffFile(project.id, c.file); setDiff(d); }
+                  }} style={{ cursor: "pointer" }}>
                     <span className={`git-kind ${c.kind}`}>{c.kind === "added" || c.kind === "untracked" ? "A" : c.kind === "deleted" ? "D" : "M"}</span>
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{c.file}</span>
+                    {diffFile === c.file && <span style={{ fontSize: 10, color: "var(--accent)" }}>▾</span>}
                   </div>
                 ))}
                 {diff && (

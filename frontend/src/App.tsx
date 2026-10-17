@@ -132,6 +132,7 @@ export default function App() {
   const [railView, setRailView] = useState<RailView | "chat">("chat");
   const [allThreads, setAllThreads] = useState<ThreadMeta[]>([]);
   const [atBottom, setAtBottom] = useState(true);
+  const [branches, setBranches] = useState<{ name: string; current: boolean }[]>([]);
   const esRef = useRef<EventSource | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -164,6 +165,7 @@ export default function App() {
 
   useEffect(() => {
     if (!project) return;
+    api.branches(project.id).then(setBranches).catch(() => {});
     api.threads(project.id).then((ts) => {
       setThreads(ts);
       setAllThreads(ts);
@@ -200,8 +202,19 @@ export default function App() {
       case "command_update":
         setBlocks((b) => b.map((x) => (x.kind === "command" && x.id === ev.id ? { ...x, status: ev.status, reason: ev.reason } : x)));
         break;
+      case "command_output":
+        setBlocks((b) => b.map((x) => (x.kind === "command" && x.id === ev.id ? { ...x, output: ((x as any).output || "") + ev.chunk } : x)));
+        break;
       case "command_result":
         setBlocks((b) => b.map((x) => (x.kind === "command" && x.id === ev.id ? { ...x, status: ev.status, output: ev.output, code: ev.code, durationMs: ev.durationMs } : x)));
+        break;
+      case "turn_cancelled":
+        setRunning(false);
+        setBlocks((b) => {
+          const last = b[b.length - 1];
+          if (last && last.kind === "error" && last.message === "任务已停止") return b;
+          return [...b, { kind: "error", message: "任务已停止" }];
+        });
         break;
       case "file_change":
         setBlocks((b) => [...b, { kind: "file_change", path: ev.path, additions: ev.additions, deletions: ev.deletions, patch: ev.patch }]);
@@ -239,6 +252,16 @@ export default function App() {
         setRunning(false);
         setRefreshToken((r) => r + 1);
         if (settings?.sounds) playChime();
+        if (document.hidden) {
+          const orig = document.title;
+          document.title = "✅ 任务完成 · OpenCodex";
+          const iv = setInterval(() => { document.title = document.title.startsWith("✅") ? orig : "✅ 任务完成 · OpenCodex"; }, 900);
+          const stopFlash = () => { clearInterval(iv); document.title = orig; window.removeEventListener("focus", stopFlash); };
+          window.addEventListener("focus", stopFlash);
+        }
+        if (Notification?.permission === "granted" && document.hidden) {
+          try { new Notification("OpenCodex", { body: "任务完成" }); } catch {}
+        }
         setThreads((ts) => ts.map((t) => (t.id === thread?.id ? { ...t, status: "idle", updatedAt: Date.now() } : t)));
         break;
       case "turn_error":
@@ -259,7 +282,7 @@ export default function App() {
     setRunning(full.status === "running");
     const es = new EventSource(api.streamUrl(t.id));
     esRef.current = es;
-    for (const type of ["turn_started", "plan", "plan_update", "command", "command_update", "command_result", "file_change", "files_reverted", "preview_ready", "process", "source", "subagent", "subagent_update", "agent_message", "agent_message_delta", "agent_message_done", "approval_request", "turn_complete", "turn_error"]) {
+    for (const type of ["turn_started", "plan", "plan_update", "command", "command_update", "command_result", "command_output", "turn_cancelled", "file_change", "files_reverted", "preview_ready", "process", "source", "subagent", "subagent_update", "agent_message", "agent_message_delta", "agent_message_done", "approval_request", "turn_complete", "turn_error"]) {
       es.addEventListener(type, (e: MessageEvent) => {
         try {
           handleEvent(JSON.parse(e.data));
@@ -336,6 +359,11 @@ export default function App() {
   const approve = useCallback(async (id: string, d: "approve" | "deny") => {
     await api.approval(id, d);
   }, []);
+
+  const stopTurn = useCallback(async () => {
+    if (!thread) return;
+    await api.cancel(thread.id);
+  }, [thread]);
 
   const undoFiles = useCallback(
     async (paths: string[]) => {
@@ -576,6 +604,23 @@ export default function App() {
             </button>
             <span className="mt-title">{thread?.title || "New chat"}</span>
             {thread?.pinned && <span className="mt-badge">📌 置顶</span>}
+            {branches.length > 0 && (
+              <select
+                className="mt-badge"
+                style={{ cursor: "pointer" }}
+                value={branches.find((b) => b.current)?.name || ""}
+                onChange={async (e) => {
+                  if (!project) return;
+                  try {
+                    await api.checkout(project.id, e.target.value);
+                    setBranches((bs) => bs.map((b) => ({ ...b, current: b.name === e.target.value })));
+                    setRefreshToken((r) => r + 1);
+                  } catch (err: any) { showToast(`切换失败: ${err?.message}`); }
+                }}
+              >
+                {branches.map((b) => <option key={b.name} value={b.name}>{b.name}</option>)}
+              </select>
+            )}
             <span className="mt-badge">{models.find((m) => m.id === modelForThread)?.name || modelForThread}</span>
             {modeForThread !== "auto" && <span className="mt-badge" style={{ color: "var(--accent-strong)" }}>⚠ {modeForThread}</span>}
             {(thread?.scheduled?.length ?? 0) > 0 && <span className="mt-badge">⏰ {thread!.scheduled!.length}</span>}
@@ -620,6 +665,8 @@ export default function App() {
                   onApprovalMode={setThreadMode}
                   placeholder={`Ask ${project?.name || "OpenCodex"} to do something…`}
                   autoFocus
+                  projectId={project?.id}
+                  onStop={stopTurn}
                 />
                 <div className="composer-hint">OpenCodex can make mistakes. Check important info.</div>
               </div>
@@ -676,6 +723,8 @@ export default function App() {
                     onModel={setThreadModel}
                     approvalMode={modeForThread}
                     onApprovalMode={setThreadMode}
+                    projectId={project?.id}
+                    onStop={stopTurn}
                   />
                   <div className="composer-hint">OpenCodex can make mistakes. Check important info. · ⌘K commands · ⌘S side chat</div>
                 </div>

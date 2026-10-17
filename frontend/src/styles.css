@@ -1191,3 +1191,26 @@ pre.codeblock {
 .sm-proc-stop:hover { color: var(--text); background: var(--hover); }
 .sm-proc-log { font-family: var(--mono); font-size: 10.5px; color: var(--muted); white-space: pre-wrap; word-break: break-word; max-height: 120px; overflow-y: auto; margin: 6px 0 0; }
 .sm-proc-add input { width: 100%; font-family: var(--mono); font-size: 11.5px; background: var(--elev); border: 1px solid var(--border); border-radius: 7px; padding: 6px 9px; margin-top: 4px; }
+
+/* ---------- autocomplete popups ---------- */
+.ac-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 6px;
+  min-width: 260px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--elev);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 4px;
+  z-index: 70;
+}
+.ac-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 6px 9px; border-radius: 7px; font-size: 12.5px; font-family: var(--mono); }
+.ac-item:hover { background: var(--hover); }
+.ac-desc { color: var(--faint); font-family: var(--font); font-size: 11.5px; margin-left: auto; padding-left: 12px; }
+.ac-empty { padding: 8px 10px; font-size: 12px; color: var(--faint); }
+
+.t-hit { color: var(--faint); font-size: 11px; }

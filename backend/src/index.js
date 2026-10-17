@@ -5,11 +5,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { load, save, saveNow, resetAll, workspacePath, DATA_HOME } from "./store.js";
-import { runTurn, bus } from "./agent.js";
-import { ensureWorkspace, tree, readFileLimited, writeFileInWorkspace, gitStatus, gitDiff, gitCommitAll, shellExec, revertPath } from "./workfs.js";
+import { runTurn, bus, cancelTurn } from "./agent.js";
+import { ensureWorkspace, tree, readFileLimited, writeFileInWorkspace, gitStatus, gitDiff, gitCommitAll, shellExec, revertPath, writeBinary } from "./workfs.js";
 import { PROVIDER_PRESETS, providerRuntime, effectiveProvider, sanitizeSettings, mergeProviderConfig } from "./providers.js";
 import { listRemoteModels } from "./llm.js";
 import { startProcess, listProcesses, stopProcess, tailLog } from "./procs.js";
+
+import { promisify as _promisify } from "node:util";
+const execFilePromise = _promisify(execFile);
 
 const app = express();
 const PORT = process.env.PORT || 8787;
@@ -17,7 +20,7 @@ const SHOTS_DIR = path.join(DATA_HOME, "shots");
 fs.mkdirSync(SHOTS_DIR, { recursive: true });
 
 app.use(cors());
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "16mb" }));
 
 const uid = (p) => `${p}_${crypto.randomBytes(6).toString("hex")}`;
 const state = load();
@@ -295,6 +298,95 @@ app.post("/api/approvals/:id", (req, res) => {
   const decision = req.body?.decision === "approve" ? "approve" : "deny";
   const ok = bus.resolveApproval(req.params.id, decision);
   res.json({ ok });
+});
+
+app.post("/api/threads/:id/cancel", (req, res) => {
+  const t = findThread(req.params.id);
+  if (!t) return res.status(404).json({ error: "not found" });
+  const ok = cancelTurn(t.id);
+  if (ok) {
+    t.status = "idle";
+    bus.broadcast(t.id, { type: "turn_cancelled", ts: Date.now() });
+    save();
+  }
+  res.json({ ok });
+});
+
+// ---------- full-text search ----------
+app.get("/api/search", (req, res) => {
+  const q = String(req.query.q || "").toLowerCase().trim();
+  if (!q) return res.json([]);
+  const hits = [];
+  for (const t of state.threads) {
+    let score = 0;
+    const sample = [];
+    for (const ev of t.events) {
+      const text = ev.prompt || ev.content || ev.cmd || ev.output || "";
+      if (String(text).toLowerCase().includes(q)) {
+        score++;
+        if (sample.length < 2) sample.push(String(text).slice(0, 120));
+      }
+    }
+    if ((t.title || "").toLowerCase().includes(q)) score += 5;
+    if (score) hits.push({ id: t.id, projectId: t.projectId, title: t.title || "New chat", updatedAt: t.updatedAt, score, sample });
+  }
+  hits.sort((a, b) => b.score - a.score || b.updatedAt - a.updatedAt);
+  res.json(hits.slice(0, 15));
+});
+
+// ---------- branches ----------
+app.get("/api/projects/:id/git/branches", async (req, res) => {
+  const dir = projectDir(req, res);
+  if (!dir) return;
+  try {
+    const { stdout } = await execFilePromise("git", ["branch", "--format=%(refname:short)%09%(HEAD)"], { cwd: dir });
+    const branches = stdout.split("\n").filter(Boolean).map((l) => {
+      const [name, head] = l.split("\t");
+      return { name, current: head === "*" };
+    });
+    res.json(branches);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+app.post("/api/projects/:id/git/checkout", async (req, res) => {
+  const dir = projectDir(req, res);
+  if (!dir) return;
+  const branch = String(req.body?.branch || "").trim();
+  if (!branch || !/^[\w./-]+$/.test(branch)) return res.status(400).json({ error: "bad branch name" });
+  try {
+    await execFilePromise("git", ["checkout", branch], { cwd: dir });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: (e.stderr || e.message).slice(0, 300) });
+  }
+});
+
+// ---------- per-file diff & upload ----------
+app.get("/api/projects/:id/diff", async (req, res) => {
+  const dir = projectDir(req, res);
+  if (!dir) return;
+  const rel = req.query.path ? String(req.query.path) : null;
+  try {
+    const args = rel ? ["diff", "HEAD", "--", rel] : ["diff", "HEAD"];
+    const { stdout } = await execFilePromise("git", args, { cwd: dir, maxBuffer: 2 * 1024 * 1024 });
+    res.json({ diff: stdout });
+  } catch (e) {
+    res.json({ diff: "", error: e.message });
+  }
+});
+app.post("/api/projects/:id/upload", (req, res) => {
+  const dir = projectDir(req, res);
+  if (!dir) return;
+  const rel = String(req.body?.path || "").replace(/^\/+/, "");
+  const b64 = String(req.body?.dataBase64 || "");
+  if (!rel || !b64 || b64.length > 8 * 1024 * 1024) return res.status(400).json({ error: "bad upload" });
+  try {
+    writeBinary(dir, rel, b64.replace(/^data:[^,]+,/, ""));
+    res.json({ ok: true, path: rel });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 // ---------- workspace fs / git / terminal ----------
