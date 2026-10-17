@@ -54,6 +54,7 @@ export interface ThreadMeta {
   messageCount: number;
   pinned?: boolean;
   archived?: boolean;
+  worktree?: { path: string; branch: string } | null;
   sideOf?: string;
   scheduled?: ScheduledTask[];
 }
@@ -100,6 +101,7 @@ export type Block =
   | { kind: "process"; id: string; cmd: string; pid: number }
   | { kind: "source"; url: string; title?: string }
   | { kind: "subagent"; id: string; prompt: string; done: boolean }
+  | { kind: "annotation"; quote: string; note: string }
   | { kind: "turn_complete" }
   | { kind: "error"; message: string };
 

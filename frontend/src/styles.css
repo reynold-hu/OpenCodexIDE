@@ -1279,3 +1279,32 @@ pre.codeblock {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* ---------- annotations / worktree / usage ---------- */
+.annotation-card { border-left: 3px solid var(--accent); }
+.ann-head { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--accent); padding: 8px 12px 4px; }
+.ann-quote { font-size: 12.5px; color: var(--muted); font-style: italic; padding: 0 12px 4px; border-left: 2px solid var(--border-strong); margin: 0 12px 4px 14px; }
+.ann-note { font-size: 13px; padding: 0 12px 10px; }
+.sel-annotate {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  z-index: 80;
+  animation: popIn 0.12s ease both;
+}
+.wt-chip { cursor: pointer; color: var(--accent) !important; border-color: var(--accent) !important; }
+.wt-chip:hover { background: var(--hover); }
+.usage-chip { margin-left: 10px; font-family: var(--mono); font-size: 10.5px; color: var(--faint); border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px; }
+.composer-hint { display: flex; align-items: center; justify-content: center; gap: 4px; }
+.appr-diff { border-top: 1px solid var(--border); }
+.ad-toggle { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); padding: 6px 12px 2px 30px; }
+.ad-toggle:hover { color: var(--text); }

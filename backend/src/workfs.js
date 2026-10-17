@@ -196,3 +196,19 @@ export async function gitRestore(dir, hash) {
   await execFileAsync("git", ["reset", "--hard", hash], { cwd: dir });
   return hash;
 }
+
+export async function gitWorktreeAdd(repoDir, wtPath, branch) {
+  fs.mkdirSync(path.dirname(wtPath), { recursive: true });
+  await execFileAsync("git", ["worktree", "add", "-B", branch, wtPath, "HEAD"], { cwd: repoDir });
+  return { path: wtPath, branch };
+}
+
+export async function gitWorktreeRemove(repoDir, wtPath) {
+  try {
+    await execFileAsync("git", ["worktree", "remove", "--force", wtPath], { cwd: repoDir });
+  } catch (e) {
+    if (fs.existsSync(wtPath)) fs.rmSync(wtPath, { recursive: true, force: true });
+    try { await execFileAsync("git", ["worktree", "prune"], { cwd: repoDir }); } catch {}
+  }
+  return true;
+}

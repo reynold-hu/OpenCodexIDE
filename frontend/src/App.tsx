@@ -10,7 +10,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { NavRail, type RailView } from "./components/NavRail";
 import { ThreadMenu } from "./components/ThreadMenu";
 import { SummaryPanel } from "./components/SummaryPanel";
-import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft } from "./icons";
+import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft, IconBranch, IconLink } from "./icons";
 
 const CHIPS = [
   "Create a calculator in JavaScript",
@@ -57,6 +57,9 @@ function blocksFromEvents(events: any[]): Block[] {
         break;
       case "restored":
         blocks.push({ kind: "error", message: `已回退到 checkpoint ${ev.hash}` });
+        break;
+      case "annotation":
+        blocks.push({ kind: "annotation", quote: ev.quote, note: ev.note });
         break;
       case "agent_message":
         index.set(ev.id, blocks.length);
@@ -142,6 +145,7 @@ export default function App() {
   const [queued, setQueued] = useState<string[]>([]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const esRef = useRef<EventSource | null>(null);
+  const approvalDiffs = useRef<Record<string, string>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -200,6 +204,19 @@ export default function App() {
       case "steer":
         setBlocks((b) => [...b, { kind: "prompt", text: ev.prompt, ts: ev.ts }]);
         break;
+      case "annotation":
+        setBlocks((b) => [...b, { kind: "annotation", quote: ev.quote, note: ev.note }]);
+        break;
+      case "notes_consumed":
+        showToast("批注已随本轮发送");
+        break;
+      case "worktree":
+        setThread((t) => (t ? { ...t, worktree: { path: ev.path, branch: ev.branch } } : t));
+        setBlocks((b) => [...b, { kind: "error", message: `已切换到独立工作树 ${ev.branch}` }]);
+        break;
+      case "worktree_detached":
+        setThread((t) => (t ? { ...t, worktree: null } : t));
+        break;
       case "restored":
         setBlocks((b) => [...b, { kind: "error", message: `已回退到 checkpoint ${ev.hash}` }]);
         setRefreshToken((r) => r + 1);
@@ -214,6 +231,7 @@ export default function App() {
         setBlocks((b) => [...b, { kind: "command", id: ev.id, cmd: ev.cmd, status: ev.status }]);
         break;
       case "approval_request":
+        if (ev.diffPreview) approvalDiffs.current[ev.id] = ev.diffPreview;
         setBlocks((b) => b.map((x) => (x.kind === "command" && x.status === "awaiting_approval" ? { ...x, approvalId: ev.id } : x)));
         break;
       case "command_update":
@@ -302,7 +320,7 @@ export default function App() {
     setRunning(full.status === "running");
     const es = new EventSource(api.streamUrl(t.id));
     esRef.current = es;
-    for (const type of ["turn_started", "plan", "plan_update", "command", "command_update", "command_result", "command_output", "turn_cancelled", "queue_update", "steer", "restored", "file_change", "files_reverted", "preview_ready", "process", "source", "subagent", "subagent_update", "agent_message", "agent_message_delta", "agent_message_done", "approval_request", "turn_complete", "turn_error"]) {
+    for (const type of ["turn_started", "plan", "plan_update", "command", "command_update", "command_result", "command_output", "turn_cancelled", "queue_update", "steer", "restored", "annotation", "worktree", "worktree_detached", "notes_consumed", "file_change", "files_reverted", "preview_ready", "process", "source", "subagent", "subagent_update", "agent_message", "agent_message_delta", "agent_message_done", "approval_request", "turn_complete", "turn_error"]) {
       es.addEventListener(type, (e: MessageEvent) => {
         try {
           handleEvent(JSON.parse(e.data));
@@ -331,6 +349,28 @@ export default function App() {
     const el = scrollRef.current;
     if (el && atBottom) el.scrollTop = el.scrollHeight;
   }, [blocks]);
+
+  const [selPop, setSelPop] = useState<{ x: number; y: number; text: string } | null>(null);
+
+  const onMouseUpThread = (e: React.MouseEvent) => {
+    const sel = window.getSelection();
+    const text = sel?.toString().trim() || "";
+    if (text.length > 3 && thread && sel && sel.rangeCount) {
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      setSelPop({ x: rect.left + rect.width / 2, y: rect.top - 8, text: text.slice(0, 400) });
+    } else {
+      setSelPop(null);
+    }
+  };
+
+  const annotateSelection = async () => {
+    if (!selPop || !thread) return;
+    const note = prompt("批注(将随下一条消息发给 agent):", "");
+    setSelPop(null);
+    window.getSelection()?.removeAllRanges();
+    if (note === null) return;
+    await api.annotate(thread.id, selPop.text, note);
+  };
 
   const onScroll = () => {
     const el = scrollRef.current;
@@ -568,6 +608,10 @@ export default function App() {
   const modelForThread = (thread?.model || settings.model)!;
   const modeForThread = (thread?.approvalMode || settings.approvalMode)!;
   const grouped = groupBlocks(blocks);
+  const approxTokens = useMemo(() => {
+    const chars = blocks.reduce((sum: number, b: any) => sum + (b.kind === "prompt" ? String(b.text).length : b.kind === "agent_message" ? String(b.text).length : 0), 0);
+    return Math.round(chars / 3);
+  }, [blocks]);
   const childChats = thread ? threads.filter((t) => t.sideOf === thread.id) : [];
 
   return (
@@ -628,6 +672,18 @@ export default function App() {
                 onSideChat={openSideChat}
                 onContinue={() => send("继续上次未完成的工作。")}
                 onFork={openFork}
+                onWorktree={async () => {
+                  if (!thread || thread.worktree) return;
+                  await api.attachWorktree(thread.id);
+                  const full = await api.thread(thread.id);
+                  setThread(full);
+                  showToast("已创建独立工作树,本轮起所有变更互不影响主线");
+                }}
+                onRetry={async () => {
+                  if (!thread) return;
+                  await api.retry(thread.id);
+                  setRunning(true);
+                }}
                 onSchedule={addSchedule}
                 onShare={() => {
                   navigator.clipboard.writeText(`${location.origin}${location.pathname}?thread=${thread.id}`);
@@ -649,6 +705,14 @@ export default function App() {
             </button>
             <span className="mt-title">{thread?.title || "New chat"}</span>
             {thread?.pinned && <span className="mt-badge mt-badge-icon"><IconPin size={11} /> 置顶</span>}
+            {thread?.worktree && (
+              <button className="mt-badge wt-chip" title={`${thread.worktree.path}\n点击退出工作树`} onClick={async () => {
+                await api.detachWorktree(thread.id);
+                setThread({ ...thread, worktree: null });
+              }}>
+                <IconBranch size={11} /> {thread.worktree.branch.replace(/^oc\//, "")} ✕
+              </button>
+            )}
             {branches.length > 0 && (
               <select
                 className="mt-badge"
@@ -725,7 +789,7 @@ export default function App() {
             </div>
           ) : (
             <>
-              <div className="thread-scroll" ref={scrollRef} onScroll={onScroll}>
+              <div className="thread-scroll" ref={scrollRef} onScroll={onScroll} onMouseUp={onMouseUpThread}>
                 <div className="thread-inner">
                   {grouped.map((b, i) => (
                     <div key={i} id={`blk-${i}`} className="block-enter">
@@ -742,6 +806,7 @@ export default function App() {
                         projectId={project?.id}
                         onRevise={reviseTurn}
                         onRestore={restoreCheckpoint}
+                        diffPreview={(b as any).approvalId ? approvalDiffs.current[(b as any).approvalId] : undefined}
                       />
                     </div>
                   ))}
@@ -756,6 +821,11 @@ export default function App() {
               {!atBottom && (
                 <button className="scroll-bottom" onClick={jumpBottom} title="回到底部">
                   <IconArrowDown size={16} />
+                </button>
+              )}
+              {selPop && (
+                <button className="sel-annotate" style={{ left: selPop.x, top: selPop.y }} onMouseDown={(e) => e.preventDefault()} onClick={annotateSelection}>
+                  <IconLink size={11} /> 批注
                 </button>
               )}
               {queued.length > 0 && (
@@ -786,7 +856,10 @@ export default function App() {
                     projectId={project?.id}
                     onStop={stopTurn}
                   />
-                  <div className="composer-hint">OpenCodex can make mistakes. Check important info. · ⌘K commands · ⌘S side chat</div>
+                  <div className="composer-hint">
+                    <span>OpenCodex can make mistakes. Check important info. · ⌘K commands · ⌘S side chat</span>
+                    {approxTokens > 0 && <span className="usage-chip" title="上下文估算 token(/compact 可压缩)">≈{(approxTokens / 1000).toFixed(1)}k tok</span>}
+                  </div>
                 </div>
               </div>
             </>
@@ -817,6 +890,7 @@ export default function App() {
             onOpenCanvas={setCanvasPath}
             tabRequest={tabRequest}
             onOpenToolFromBrowser={(t) => setTabRequest((r) => ({ tab: t, nonce: r.nonce + 1 }))}
+            threadId={thread?.id}
           />
         )}
       </div>

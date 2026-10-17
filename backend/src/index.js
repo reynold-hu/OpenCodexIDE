@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { load, save, saveNow, resetAll, workspacePath, DATA_HOME } from "./store.js";
-import { runTurn, bus, cancelTurn, enqueueSteer } from "./agent.js";
+import { runTurn, bus, cancelTurn, enqueueSteer, attachWorktree, detachWorktree, resolveThreadDir } from "./agent.js";
 import { ensureWorkspace, tree, readFileLimited, writeFileInWorkspace, gitStatus, gitDiff, gitCommitAll, shellExec, revertPath, writeBinary, gitRestore } from "./workfs.js";
 import { PROVIDER_PRESETS, providerRuntime, effectiveProvider, sanitizeSettings, mergeProviderConfig } from "./providers.js";
 import { listRemoteModels } from "./llm.js";
@@ -341,6 +341,52 @@ app.post("/api/threads/:id/revise", (req, res) => {
       save();
     });
 });
+app.post("/api/threads/:id/worktree", async (req, res) => {
+  const t = findThread(req.params.id);
+  if (!t) return res.status(404).json({ error: "not found" });
+  try {
+    const wt = await attachWorktree(state, t);
+    res.json({ ok: true, worktree: wt });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+app.delete("/api/threads/:id/worktree", async (req, res) => {
+  const t = findThread(req.params.id);
+  if (!t) return res.status(404).json({ error: "not found" });
+  res.json({ ok: await detachWorktree(state, t) });
+});
+app.post("/api/threads/:id/annotate", (req, res) => {
+  const t = findThread(req.params.id);
+  if (!t) return res.status(404).json({ error: "not found" });
+  const quote = String(req.body?.quote || "").slice(0, 500);
+  const note = String(req.body?.note || "").slice(0, 500);
+  if (!quote && !note) return res.status(400).json({ error: "empty annotation" });
+  t.pendingNotes = t.pendingNotes || [];
+  t.pendingNotes.push({ quote, note });
+  const ev = { type: "annotation", quote, note, ts: Date.now() };
+  t.events.push(ev);
+  bus.broadcast(t.id, ev);
+  save();
+  res.json({ ok: true, pending: t.pendingNotes.length });
+});
+app.post("/api/threads/:id/retry", (req, res) => {
+  const t = findThread(req.params.id);
+  if (!t) return res.status(404).json({ error: "not found" });
+  if (t.status === "running") return res.status(409).json({ error: "turn running" });
+  let lastTs = null, lastPrompt = null;
+  for (const e of t.events) if (e.type === "turn_started") { lastTs = e.ts; lastPrompt = e.prompt; }
+  if (lastTs === null) return res.status(400).json({ error: "no previous turn" });
+  t.events = t.events.slice(0, t.events.findIndex((e) => e.type === "turn_started" && e.ts === lastTs));
+  res.json({ ok: true, turnStarted: true });
+  runTurn(state, t, lastPrompt)
+    .then(() => save())
+    .catch((e) => {
+      t.status = "idle";
+      bus.broadcast(t.id, { type: "turn_error", message: String(e.message || e) });
+      save();
+    });
+});
 app.post("/api/threads/:id/cancel", (req, res) => {
   const t = findThread(req.params.id);
   if (!t) return res.status(404).json({ error: "not found" });
@@ -437,6 +483,8 @@ function projectDir(req, res) {
     res.status(404).json({ error: "project not found" });
     return null;
   }
+  const t = findThread(String(req.query.thread || req.body?.thread || ""));
+  if (t && t.worktree && fs.existsSync(t.worktree.path)) return t.worktree.path;
   return workspacePath(p);
 }
 
@@ -501,7 +549,8 @@ const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "
 app.get("/preview/:projectId/*", (req, res) => {
   const p = findProject(req.params.projectId);
   if (!p) return res.status(404).send("project not found");
-  const dir = workspacePath(p);
+  const tq = findThread(String(req.query.thread || ""));
+  const dir = tq && tq.worktree && fs.existsSync(tq.worktree.path) ? tq.worktree.path : workspacePath(p);
   const rel = req.params[0] || "index.html";
   const full = path.normalize(path.join(dir, rel));
   if (!full.startsWith(dir)) return res.status(400).send("bad path");

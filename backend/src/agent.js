@@ -3,8 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { shellExec, writeFileInWorkspace, gitStatus, tree, readFileLimited, ensureWorkspace, gitCheckpoint } from "./workfs.js";
-import { workspacePath, save } from "./store.js";
+import { shellExec, writeFileInWorkspace, gitStatus, tree, readFileLimited, ensureWorkspace, gitCheckpoint, gitWorktreeAdd, gitWorktreeRemove } from "./workfs.js";
+import { workspacePath, save, DATA_HOME } from "./store.js";
 import { chatStream, AGENT_TOOLS } from "./llm.js";
 import { effectiveProvider, isRealProvider } from "./providers.js";
 import { startProcess } from "./procs.js";
@@ -44,7 +44,7 @@ export class TurnBus {
     }
   }
 
-  requestApproval(threadId, command, cwd) {
+  requestApproval(threadId, command, cwd, diffPreview = "") {
     const id = uid("appr");
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
@@ -52,7 +52,7 @@ export class TurnBus {
         resolve({ decision: "timeout" });
       }, 120000);
       this.pendingApprovals.set(id, { threadId, command, resolve: (decision) => { clearTimeout(timer); this.pendingApprovals.delete(id); resolve({ decision }); } });
-      this.broadcast(threadId, { type: "approval_request", id, command, cwd, ts: Date.now() });
+      this.broadcast(threadId, { type: "approval_request", id, command, cwd, diffPreview: diffPreview.slice(0, 3000), ts: Date.now() });
     });
   }
 
@@ -159,6 +159,37 @@ async function streamMessage(state, thread, text, kind = "agent_message") {
 
 function threadProject(state, thread) {
   return state.projects.find((p) => p.id === thread.projectId) || state.projects[0];
+}
+
+export async function resolveThreadDir(state, thread) {
+  if (thread.worktree && fs.existsSync(thread.worktree.path)) return thread.worktree.path;
+  const project = threadProject(state, thread);
+  return ensureWorkspace(project);
+}
+
+export async function attachWorktree(state, thread) {
+  if (thread.worktree && fs.existsSync(thread.worktree.path)) return thread.worktree;
+  const project = threadProject(state, thread);
+  const repoDir = await ensureWorkspace(project);
+  const slug = (thread.title || "chat").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "chat";
+  const branch = `oc/${slug}-${thread.id.slice(-4)}`;
+  const wtPath = path.join(DATA_HOME, "worktrees", thread.id);
+  const wt = await gitWorktreeAdd(repoDir, wtPath, branch);
+  thread.worktree = wt;
+  pushEvent(state, thread, { type: "worktree", path: wt.path, branch: wt.branch, ts: Date.now() });
+  save();
+  return wt;
+}
+
+export async function detachWorktree(state, thread) {
+  if (!thread.worktree) return false;
+  const project = threadProject(state, thread);
+  const repoDir = await ensureWorkspace(project);
+  await gitWorktreeRemove(repoDir, thread.worktree.path);
+  pushEvent(state, thread, { type: "worktree_detached", branch: thread.worktree.branch, ts: Date.now() });
+  thread.worktree = null;
+  save();
+  return true;
 }
 
 async function emitFileChange(state, thread, dir, relPath, content) {
@@ -370,7 +401,16 @@ async function gateFileChange(state, thread, dir, relPath, content) {
   if (mode === "ask") {
     const id = uid("cmd");
     pushEvent(state, thread, { type: "command", id, cmd: `apply changes: ${relPath}`, status: "awaiting_approval", ts: Date.now() });
-    const { decision } = await bus.requestApproval(thread.id, `Apply changes to ${relPath}`, dir);
+    let preview = "";
+    try {
+      const existed = fs.existsSync(path.join(dir, relPath));
+      const before = existed ? fs.readFileSync(path.join(dir, relPath), "utf8").split("\n") : [];
+      const after = content.split("\n");
+      const lines = [];
+      for (const l of after.slice(0, 40)) lines.push("+" + l);
+      preview = `--- ${relPath} (current)\n+++ ${relPath} (proposed)\n` + (before.length ? `(${before.length} existing lines will be replaced)\n` : "(new file)\n") + lines.join("\n");
+    } catch {}
+    const { decision } = await bus.requestApproval(thread.id, `Apply changes to ${relPath}`, dir, preview);
     const ev = thread.events.find((e) => e.type === "command" && e.id === id);
     if (decision !== "approve") {
       if (ev) Object.assign(ev, { status: "denied", reason: decision === "timeout" ? "no response" : "denied by user" });
@@ -708,7 +748,14 @@ export async function runTurn(state, thread, prompt) {
   const provider = effectiveProvider(state);
   const project = threadProject(state, thread);
   if (!project) throw new Error("no project");
-  const dir = await ensureWorkspaceExists(state, project);
+  const dir = await resolveThreadDir(state, thread);
+
+  const notes = thread.pendingNotes || [];
+  if (notes.length) {
+    prompt = `${notes.map((n) => `[批注 · 关于"${n.quote.slice(0, 60)}"]: ${n.note}`).join("\n")}\n\n${prompt}`;
+    thread.pendingNotes = [];
+    bus.broadcast(thread.id, { type: "notes_consumed", ts: Date.now() });
+  }
 
   activeTurns.set(thread.id, { aborted: false, child: null, llmAbort: null });
   try {
@@ -793,7 +840,7 @@ async function runSimulatedTurn(state, thread, prompt, dir, displayPrompt, check
     setPlan(3, true);
     if (applied && gen.preview) {
       const project = threadProject(state, thread);
-      pushEvent(state, thread, { type: "preview_ready", path: gen.file, url: `/preview/${project.id}/${gen.file}`, ts: Date.now() });
+      pushEvent(state, thread, { type: "preview_ready", path: gen.file, url: `/preview/${project.id}/${gen.file}?thread=${thread.id}`, ts: Date.now() });
     }
     const verifyCmd = gen.file.endsWith(".js") ? `node --check ${gen.file} && echo OK` : gen.file.endsWith(".py") ? `python3 -m py_compile ${gen.file} && echo OK` : `head -20 ${gen.file}`;
     if (applied) {
@@ -810,7 +857,7 @@ async function runSimulatedTurn(state, thread, prompt, dir, displayPrompt, check
     setPlan(2, true);
     if (applied2 && gen.preview) {
       const project = threadProject(state, thread);
-      pushEvent(state, thread, { type: "preview_ready", path: gen.file, url: `/preview/${project.id}/${gen.file}`, ts: Date.now() });
+      pushEvent(state, thread, { type: "preview_ready", path: gen.file, url: `/preview/${project.id}/${gen.file}?thread=${thread.id}`, ts: Date.now() });
     }
     await streamMessage(state, thread, applied2 ? gen.summary : `You declined the change to \`${gen.file}\`. Tell me what to adjust and I'll retry.`);
   }
@@ -826,6 +873,4 @@ async function runSimulatedTurn(state, thread, prompt, dir, displayPrompt, check
   pushEvent(state, thread, { type: "turn_complete", usage: { input_tokens: prompt.length / 3 | 0, output_tokens: 64 + Math.random() * 200 | 0 }, ts: Date.now() });
 }
 
-async function ensureWorkspaceExists(state, project) {
-  return ensureWorkspace(project);
-}
+

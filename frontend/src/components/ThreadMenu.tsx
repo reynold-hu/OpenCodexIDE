@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { IconPencil, IconPin, IconPlus, IconClock, IconCalendar, IconShare, IconCopy, IconExternal, IconArchive, IconChevron } from "../icons";
+import { IconPencil, IconPin, IconPlus, IconClock, IconCalendar, IconShare, IconCopy, IconExternal, IconArchive, IconChevron, IconBranch, IconRefresh } from "../icons";
 
 export function ThreadMenu({
   thread,
@@ -8,6 +8,8 @@ export function ThreadMenu({
   onSideChat,
   onContinue,
   onFork,
+  onWorktree,
+  onRetry,
   onSchedule,
   onShare,
   onCopyTranscript,
@@ -20,6 +22,8 @@ export function ThreadMenu({
   onSideChat: () => void;
   onContinue: () => void;
   onFork: () => void;
+  onWorktree: () => void;
+  onRetry: () => void;
   onSchedule: () => void;
   onShare: () => void;
   onCopyTranscript: () => void;
@@ -82,6 +86,8 @@ export function ThreadMenu({
             )}
           </div>
           <Item icon={<IconCalendar size={14} />} label="添加计划任务…" onClick={onSchedule} />
+          <Item icon={<IconBranch size={14} />} label="在独立工作树中运行" onClick={onWorktree} />
+          <Item icon={<IconRefresh size={14} />} label="重试上一轮" onClick={onRetry} />
           <div className="menu-sep" />
           <Item icon={<IconShare size={14} />} label="分享" onClick={onShare} />
           <Item icon={<IconCopy size={14} />} label="复制对话" onClick={onCopyTranscript} />

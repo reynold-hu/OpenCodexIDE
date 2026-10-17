@@ -15,6 +15,7 @@ export function SidePanel({
   onOpenCanvas,
   tabRequest,
   onOpenToolFromBrowser,
+  threadId,
 }: {
   project: Project;
   onClose: () => void;
@@ -24,6 +25,7 @@ export function SidePanel({
   onOpenCanvas: (p: string | null) => void;
   tabRequest: { tab: Tab; nonce: number };
   onOpenToolFromBrowser: (tab: "files" | "terminal") => void;
+  threadId?: string;
 }) {
   const [tab, setTab] = useState<Tab>("review");
   const [browserNonce, setBrowserNonce] = useState(0);
@@ -45,7 +47,7 @@ export function SidePanel({
   useEffect(() => {
     if (canvasPath) {
       setTab("canvas");
-      api.file(project.id, canvasPath).then((f) => setCanvas({ path: canvasPath, content: f.content })).catch(() => {});
+      api.file(project.id, canvasPath, threadId).then((f) => setCanvas({ path: canvasPath, content: f.content })).catch(() => {});
     }
   }, [canvasPath, project.id]);
   const [changes, setChanges] = useState<{ file: string; kind: string }[]>([]);
@@ -60,7 +62,7 @@ export function SidePanel({
 
   const refreshGit = useCallback(async () => {
     try {
-      const r = await api.git(project.id);
+      const r = await api.git(project.id, threadId);
       setChanges(r.status);
       setDiff(r.diff);
     } catch {}
@@ -68,14 +70,14 @@ export function SidePanel({
 
   const refreshTree = useCallback(async () => {
     try {
-      setTreeFiles(await api.tree(project.id));
+      setTreeFiles(await api.tree(project.id, threadId));
     } catch {}
   }, [project.id]);
 
   useEffect(() => {
     if (tab === "review") refreshGit();
     if (tab === "files") refreshTree();
-  }, [tab, refreshToken, refreshGit, refreshTree, project.id]);
+  }, [tab, refreshToken, refreshGit, refreshTree, project.id, threadId]);
 
   const runTerminal = async () => {
     const cmd = termInput.trim();
@@ -83,7 +85,7 @@ export function SidePanel({
     setBusy(true);
     setTermInput("");
     try {
-      const r = await api.terminal(project.id, cmd);
+      const r = await api.terminal(project.id, cmd, threadId);
       setTermHistory((h) => [...h, { cmd, out: (r.stdout + (r.stderr ? `\n${r.stderr}` : "")).trim(), code: r.code }]);
     } catch (e: any) {
       setTermHistory((h) => [...h, { cmd, out: String(e?.message || e), code: 1 }]);
@@ -93,7 +95,7 @@ export function SidePanel({
 
   const openFile = async (p: string) => {
     try {
-      const f = await api.file(project.id, p);
+      const f = await api.file(project.id, p, threadId);
       setFileContent({ path: p, content: f.truncated ? `[file too large: ${f.size} bytes]` : f.content });
     } catch (e: any) {
       setFileContent({ path: p, content: `Error: ${e?.message}` });
@@ -135,7 +137,7 @@ export function SidePanel({
                     onClick={async () => {
                       setBusy(true);
                       try {
-                        await api.commit(project.id, commitMsg || "OpenCodex changes");
+                        await api.commit(project.id, commitMsg || "OpenCodex changes", threadId);
                         setCommitMsg("");
                         await refreshGit();
                       } finally {
@@ -149,7 +151,7 @@ export function SidePanel({
                 {changes.map((c, i) => (
                   <div key={i} className="git-file-row" onClick={async () => {
                     if (diffFile === c.file) { setDiffFile(null); setDiff(""); }
-                    else { setDiffFile(c.file); const d = await api.diffFile(project.id, c.file); setDiff(d); }
+                    else { setDiffFile(c.file); const d = await api.diffFile(project.id, c.file, threadId); setDiff(d); }
                   }} style={{ cursor: "pointer" }}>
                     <span className={`git-kind ${c.kind}`}>{c.kind === "added" || c.kind === "untracked" ? "A" : c.kind === "deleted" ? "D" : "M"}</span>
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{c.file}</span>
@@ -249,7 +251,7 @@ export function SidePanel({
                   className="btn primary"
                   style={{ padding: "3px 10px" }}
                   onClick={async () => {
-                    await api.saveFile(project.id, canvas.path, canvas.content);
+                    await api.saveFile(project.id, canvas.path, canvas.content, threadId);
                     setSaved("已保存 " + new Date().toLocaleTimeString());
                     refreshGit();
                     setTimeout(() => setSaved(""), 2500);

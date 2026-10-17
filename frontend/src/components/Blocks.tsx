@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import type { Block, FileChangeItem } from "../types";
 import { Markdown } from "../Markdown";
-import { IconCheck, IconChevron, IconShield, IconX, IconFile, IconGlobe, IconUndo, IconCopy, IconThumbUp, IconThumbDown, IconSpeaker, IconExternal, IconCalendar, IconPencil, IconProcess } from "../icons";
+import { IconCheck, IconChevron, IconShield, IconX, IconFile, IconGlobe, IconUndo, IconCopy, IconThumbUp, IconThumbDown, IconSpeaker, IconExternal, IconCalendar, IconPencil, IconProcess, IconLink } from "../icons";
 
 export function DiffView({ patch }: { patch: string }) {
   const lines = patch.split("\n");
@@ -49,8 +49,9 @@ export function PlanCard({ block }: { block: Extract<Block, { kind: "plan" }> })
   );
 }
 
-export function CommandCard({ block, onApprove }: { block: Extract<Block, { kind: "command" }>; onApprove?: (id: string, d: "approve" | "deny") => void }) {
+export function CommandCard({ block, onApprove, diffPreview }: { block: Extract<Block, { kind: "command" }>; onApprove?: (id: string, d: "approve" | "deny") => void; diffPreview?: string }) {
   const [open, setOpen] = useState(true);
+  const [showDiff, setShowDiff] = useState(true);
   const awaiting = block.status === "awaiting_approval";
   return (
     <div className="card cmd-card">
@@ -65,6 +66,12 @@ export function CommandCard({ block, onApprove }: { block: Extract<Block, { kind
         {block.durationMs !== undefined && <span className="ch-meta">{(block.durationMs / 1000).toFixed(1)}s</span>}
         {block.output ? <IconChevron size={12} dir={open ? "up" : "down"} style={{ color: "var(--faint)" }} /> : null}
       </div>
+      {awaiting && diffPreview && (
+        <div className="appr-diff">
+          <button className="ad-toggle" onClick={() => setShowDiff(!showDiff)}>变更预览 <IconChevron size={10} dir={showDiff ? "up" : "down"} /></button>
+          {showDiff && <DiffView patch={diffPreview} />}
+        </div>
+      )}
       {awaiting && onApprove && (
         <div className="approve-row">
           <button className="btn-allow" onClick={() => onApprove(block.approvalId || block.id, "approve")}>Allow</button>
@@ -229,6 +236,16 @@ export function ProcessCard({ block, projectId }: { block: Extract<Block, { kind
   );
 }
 
+export function AnnotationCard({ block }: { block: Extract<Block, { kind: "annotation" }> }) {
+  return (
+    <div className="card annotation-card">
+      <div className="ann-head"><IconLink size={12} /> 批注 · 待下一轮处理</div>
+      {block.quote && <div className="ann-quote">“{block.quote}”</div>}
+      {block.note && <div className="ann-note">{block.note}</div>}
+    </div>
+  );
+}
+
 export function UserBubble({ block, onRevise, onRestore }: { block: Extract<Block, { kind: "prompt" }>; onRevise?: (ts: number, newPrompt: string) => void; onRestore?: (hash: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(block.text);
@@ -263,6 +280,7 @@ export function BlockView({
   onRevise,
   onRestore,
   onApprove,
+  diffPreview,
   onUndoFiles,
   onViewChanges,
   onOpenCanvas,
@@ -284,6 +302,7 @@ export function BlockView({
   projectId?: string;
   onRevise?: (ts: number, newPrompt: string) => void;
   onRestore?: (hash: string) => void;
+  diffPreview?: string;
 }) {
   switch (block.kind) {
     case "prompt":
@@ -298,7 +317,7 @@ export function BlockView({
     case "plan":
       return <PlanCard block={block} />;
     case "command":
-      return <CommandCard block={block} onApprove={onApprove} />;
+      return <CommandCard block={block} onApprove={onApprove} diffPreview={diffPreview} />;
     case "file_change":
       return <FileGroupCard items={[block]} onUndo={onUndoFiles} onViewChanges={onViewChanges} onOpenCanvas={onOpenCanvas} />;
     case "file_group":
@@ -310,6 +329,8 @@ export function BlockView({
     case "source":
     case "subagent":
       return null;
+    case "annotation":
+      return <AnnotationCard block={block} />;
     case "error":
       return <div className="agent-msg" style={{ color: "var(--accent-strong)" }}>{block.message}</div>;
     default:
