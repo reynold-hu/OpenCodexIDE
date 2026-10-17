@@ -1,7 +1,7 @@
 import React from "react";
-import { IconHome, IconLayers, IconClock, IconLibrary, IconAt, IconDots, IconGrid, IconGear } from "../icons";
+import { IconHome, IconLayers, IconClock, IconLibrary, IconAt, IconDots, IconGrid, IconGear, IconCalendar } from "../icons";
 
-export type RailView = "home" | "artifacts" | "history" | "projects" | "agents" | "more";
+export type RailView = "home" | "artifacts" | "history" | "projects" | "agents" | "automations" | "more";
 
 const ITEMS: { id: RailView; label: string; icon: React.ReactNode }[] = [
   { id: "home", label: "Home", icon: <IconHome size={17} /> },
@@ -9,6 +9,7 @@ const ITEMS: { id: RailView; label: string; icon: React.ReactNode }[] = [
   { id: "history", label: "History", icon: <IconClock size={17} /> },
   { id: "projects", label: "Projects", icon: <IconLibrary size={17} /> },
   { id: "agents", label: "Agents", icon: <IconAt size={17} /> },
+  { id: "automations", label: "Automations", icon: <IconCalendar size={17} /> },
 ];
 
 export function NavRail({ view, onView, onSettings }: { view: RailView; onView: (v: RailView) => void; onSettings: () => void }) {

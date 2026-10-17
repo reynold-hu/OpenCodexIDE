@@ -65,6 +65,9 @@ export function CommandCard({ block, onApprove, diffPreview }: { block: Extract<
         {awaiting && <span className="status-ico wait"><IconShield size={13} /></span>}
         <span className="dollar">$</span>
         <span className="cmd-text">{block.cmd}</span>
+        {block.risk && block.risk.level !== "read" && (
+          <span className={`risk-badge ${block.risk.level}`}>{block.risk.label}</span>
+        )}
         {block.durationMs !== undefined && <span className="ch-meta">{(block.durationMs / 1000).toFixed(1)}s</span>}
         {block.output ? <IconChevron size={12} dir={open ? "up" : "down"} style={{ color: "var(--faint)" }} /> : null}
       </div>

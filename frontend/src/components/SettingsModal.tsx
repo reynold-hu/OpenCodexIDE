@@ -190,6 +190,14 @@ export function SettingsModal({
 
           <div className="set-row">
             <div className="sr-label">
+              <div className="sr-title">语音化身 Voice embodiment</div>
+              <div className="sr-desc">Muse/Grok 风格:任务完成后用语音朗读回复(皮肤决定音色倾向)</div>
+            </div>
+            <button className={`switch ${(settings as any).voice ? "on" : ""}`} onClick={() => onChange({ voice: !(settings as any).voice } as Partial<Settings>)} />
+          </div>
+
+          <div className="set-row">
+            <div className="sr-label">
               <div className="sr-title">Account</div>
               <div className="sr-desc">{settings.account.email}</div>
             </div>

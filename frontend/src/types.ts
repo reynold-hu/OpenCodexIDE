@@ -29,6 +29,7 @@ export interface Settings {
   reasoning: string;
   approvalMode: ApprovalMode;
   sounds: boolean;
+  voice?: boolean;
   account: { name: string; email: string };
 }
 
@@ -99,6 +100,7 @@ export type Block =
       reason?: string;
       approvalId?: string;
       expiresAt?: number;
+      risk?: { level: string; label: string };
     }
   | ({ kind: "file_change" } & FileChangeItem)
   | { kind: "file_group"; items: FileChangeItem[] }

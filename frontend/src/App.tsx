@@ -11,7 +11,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { NavRail, type RailView } from "./components/NavRail";
 import { ThreadMenu } from "./components/ThreadMenu";
 import { SummaryPanel } from "./components/SummaryPanel";
-import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft, IconBranch, IconLink } from "./icons";
+import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft, IconBranch, IconLink, IconChevron } from "./icons";
 
 export const MODE_STRINGS: Record<string, { title: string; ask: string; chips: string[] }> = {
   codex: { title: "Where should OpenCodex work?", ask: "Ask OpenCodex anything…", chips: ["Create a calculator in JavaScript", "Build a todo list app in Python", "做一个个人资产看板网页", "List the workspace files", "Write a small HTTP server in Node", "What is the git status?"] },
@@ -155,10 +155,16 @@ export default function App() {
   const [branches, setBranches] = useState<{ name: string; current: boolean }[]>([]);
   const [queued, setQueued] = useState<string[]>([]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQ, setFindQ] = useState("");
+  const [findIdx, setFindIdx] = useState(0);
+  const [automations, setAutomations] = useState<any[]>([]);
   const esRef = useRef<EventSource | null>(null);
   const approvalDiffs = useRef<Record<string, string>>({});
   const approvalExpiry = useRef<Record<string, number>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
+  const blocksRef = useRef<Block[]>([]);
+  useEffect(() => { blocksRef.current = blocks; }, [blocks]);
 
   useEffect(() => {
     if (!settings) return;
@@ -187,6 +193,13 @@ export default function App() {
       }
     });
   }, [settings?.provider]);
+
+  useEffect(() => {
+    if (railView !== "automations") return;
+    api.automations().then(setAutomations).catch(() => {});
+    const iv = setInterval(() => api.automations().then(setAutomations).catch(() => {}), 5000);
+    return () => clearInterval(iv);
+  }, [railView]);
 
   useEffect(() => {
     if (!project) return;
@@ -308,6 +321,21 @@ export default function App() {
         setRunning(false);
         setRefreshToken((r) => r + 1);
         if (settings?.sounds) playChime();
+        if (settings?.voice) {
+          const last = [...blocksRef.current].reverse().find((b: any) => b.kind === "agent_message") as any;
+          if (last?.text) {
+            try {
+              const u = new SpeechSynthesisUtterance(last.text.replace(/[`#*_\[\]()]/g, "").slice(0, 1200));
+              const skin = settings.appMode || "codex";
+              const voices = speechSynthesis.getVoices();
+              const pick = voices.find((v) => (skin === "grok" ? /en-|Google/ : /zh|Ting|Mei|Sinji/i.test(v.lang + v.name))) || voices[0];
+              if (pick) u.voice = pick;
+              u.rate = skin === "muse" ? 1.05 : 1;
+              speechSynthesis.cancel();
+              speechSynthesis.speak(u);
+            } catch {}
+          }
+        }
         if (document.hidden) {
           const orig = document.title;
           document.title = "✅ 任务完成 · OpenCodex";
@@ -595,6 +623,9 @@ export default function App() {
           e.preventDefault();
           openSideChat();
         }
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        setFindOpen(true);
       } else if ((e.metaKey || e.ctrlKey) && e.key === "/") {
         e.preventDefault();
         setShortcutsOpen((v) => !v);
@@ -803,7 +834,29 @@ export default function App() {
             </div>
           )}
 
-          {railView === "artifacts" || railView === "history" || railView === "projects" || railView === "agents" || railView === "more" ? (
+          {railView === "automations" ? (
+            <div className="rail-page">
+              <h2>Automations · 自动化中心</h2>
+              {automations.length === 0 && <div className="sp-empty">还没有自动化。在对话菜单里"添加计划任务"，Grok-Bot 风格的定时任务会出现在这里。</div>}
+              <div className="rp-list">
+                {automations.map((a) => {
+                  const mins = Math.max(0, Math.round((a.nextRun - Date.now()) / 60000));
+                  return (
+                    <div key={a.id} className="auto-row">
+                      <button className={`status-dot ${a.enabled === false ? "idle" : "running"}`} style={a.enabled === false ? { background: "var(--faint)" } : undefined}
+                        onClick={async () => { await api.patchSchedule(a.threadId, a.id, { enabled: a.enabled === false }); api.automations().then(setAutomations); }} title="启用/停用" />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13 }}>{a.prompt}</div>
+                        <div className="rp-sub">对话:{a.threadTitle} · 每 {a.everyMinutes} 分钟 · {a.enabled === false ? "已停用" : `${mins} 分钟后运行`}</div>
+                      </div>
+                      <button className="btn" onClick={async () => { await api.patchSchedule(a.threadId, a.id, { runNow: true }); api.automations().then(setAutomations); }}>立即运行</button>
+                      <button className="btn" onClick={async () => { await api.unschedule(a.threadId, a.id); api.automations().then(setAutomations); }}>删除</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : railView === "artifacts" || railView === "history" || railView === "projects" || railView === "agents" || railView === "more" ? (
             <RailPage view={railView} threads={allThreads} onOpenThread={openThread} onCreateProject={createProject} projects={projects} onProject={(p) => { setProject(p); setRailView("chat"); }} />
           ) : !thread && blocks.length === 0 ? (
             <div className="landing">
@@ -837,8 +890,22 @@ export default function App() {
             </div>
           ) : (
             <>
+              {findOpen && (
+                <div className="find-bar">
+                  <input
+                    autoFocus
+                    placeholder="在对话中查找…"
+                    value={findQ}
+                    onChange={(e) => { setFindQ(e.target.value); setFindIdx(0); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") setFindIdx((i) => i + (e.shiftKey ? -1 : 1)); if (e.key === "Escape") setFindOpen(false); }}
+                  />
+                  <button className="icon-btn" onClick={() => setFindIdx((i) => i - 1)}><IconChevron size={13} dir="up" /></button>
+                  <button className="icon-btn" onClick={() => setFindIdx((i) => i + 1)}><IconChevron size={13} dir="down" /></button>
+                  <button className="icon-btn" onClick={() => setFindOpen(false)}><IconX size={13} /></button>
+                </div>
+              )}
               <div className="thread-scroll" ref={scrollRef} onScroll={onScroll} onMouseUp={onMouseUpThread}>
-                <div className="thread-inner">
+                <div className="thread-inner" data-find={findQ || undefined}>
                   {grouped.map((b, i) => (
                     <div key={i} id={`blk-${i}`} className="block-enter">
                       <BlockView

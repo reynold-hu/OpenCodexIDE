@@ -631,6 +631,23 @@ app.get("/api/projects/:id/processes/:pid/log", (req, res) => {
 });
 
 // ---------- outputs & sources ----------
+app.get("/api/automations", (req, res) => {
+  const out = [];
+  for (const t of state.threads) for (const task of t.scheduled || []) {
+    out.push({ ...task, threadId: t.id, threadTitle: t.title || "chat", projectId: t.projectId });
+  }
+  out.sort((a, b) => a.nextRun - b.nextRun);
+  res.json(out);
+});
+app.patch("/api/threads/:id/schedule/:taskId", (req, res) => {
+  const t = findThread(req.params.id);
+  const task = (t?.scheduled || []).find((x) => x.id === req.params.taskId);
+  if (!task) return res.status(404).json({ error: "not found" });
+  if (req.body?.enabled !== undefined) task.enabled = !!req.body.enabled;
+  if (req.body?.runNow) task.nextRun = Date.now();
+  saveNow();
+  res.json({ ok: true });
+});
 app.get("/api/outputs", (req, res) => {
   const out = [];
   for (const t of state.threads) {

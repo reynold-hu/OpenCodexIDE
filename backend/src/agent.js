@@ -13,6 +13,16 @@ const execFileAsync = promisify(execFile);
 
 const READ_ONLY_CMDS = /^(ls|pwd|whoami|date|echo|cat|head|tail|wc|which|node --version|python3? --version|git (status|log|diff|show|branch)|du|find)\b/;
 
+const RISK_RULES = [
+  { level: "destructive", label: "高危", re: /\b(rm\s+-rf|rm\s+-fr|sudo|mkfs|dd\s+if=|:\(\)\{|chmod\s+777|git\s+push\s+--force|drop\s+table|format\s+c:)/i },
+  { level: "network", label: "联网", re: /\b(curl|wget|nc|ssh|scp|npm\s+(publish|install)|pip\s+install|git\s+(clone|fetch|pull|push))\b/i },
+  { level: "write", label: "写入", re: /(^|[^>])>>?\s|\b(mv|cp|tee|touch|mkdir|rmdir|sed\s+-i|git\s+(add|commit|checkout|reset|merge)|python3?\s+-m\s+pip)/i },
+];
+export function classifyCommand(cmd) {
+  for (const r of RISK_RULES) if (r.re.test(cmd)) return { level: r.level, label: r.label };
+  return { level: "read", label: "只读" };
+}
+
 function uid(prefix = "id") {
   return `${prefix}_${crypto.randomBytes(6).toString("hex")}`;
 }
@@ -104,14 +114,25 @@ async function runCommand(state, thread, cmd, opts = {}) {
   const id = uid("cmd");
   const settings = state.settings;
   const mode = thread.approvalMode || settings.approvalMode;
-  const mutating = opts.mutating !== false && !READ_ONLY_CMDS.test(cmd.trim());
+  const risk = classifyCommand(cmd);
+  const mutating = (opts.mutating !== false && !READ_ONLY_CMDS.test(cmd.trim())) || risk.level === "write" || risk.level === "destructive";
+  if (risk.level === "destructive" && mode === "auto") {
+    pushEvent(state, thread, { type: "command", id, cmd, status: "awaiting_approval", risk, ts: Date.now() });
+    const { decision } = await bus.requestApproval(thread.id, cmd, dir);
+    const ev = thread.events.find((e) => e.type === "command" && e.id === id);
+    if (decision !== "approve") {
+      if (ev) Object.assign(ev, { status: "denied", reason: "高危命令未获批准" });
+      bus.broadcast(thread.id, { type: "command_update", id, status: "denied", reason: "高危命令未获批准" });
+      return { skipped: true, reason: "destructive command blocked" };
+    }
+  }
 
   if (mode === "read-only" && mutating) {
     pushEvent(state, thread, { type: "command", id, cmd, status: "denied", reason: "read-only mode", ts: Date.now() });
     return { skipped: true, reason: "read-only mode" };
   }
   if (mode === "ask" && mutating) {
-    pushEvent(state, thread, { type: "command", id, cmd, status: "awaiting_approval", ts: Date.now() });
+    pushEvent(state, thread, { type: "command", id, cmd, status: "awaiting_approval", risk, ts: Date.now() });
     const { decision } = await bus.requestApproval(thread.id, cmd, dir);
     const ev = thread.events.find((e) => e.type === "command" && e.id === id);
     if (decision !== "approve") {
@@ -122,7 +143,7 @@ async function runCommand(state, thread, cmd, opts = {}) {
     if (ev) Object.assign(ev, { status: "running" });
     bus.broadcast(thread.id, { type: "command_update", id, status: "running" });
   } else {
-    pushEvent(state, thread, { type: "command", id, cmd, status: "running", ts: Date.now() });
+    pushEvent(state, thread, { type: "command", id, cmd, status: "running", risk, ts: Date.now() });
   }
   const t0 = Date.now();
   const turn = activeTurns.get(thread.id);
@@ -640,7 +661,7 @@ async function runTurnReal(state, thread, prompt, provider, dirIn, displayPrompt
       const llmAbort = new AbortController();
       if (turn) turn.llmAbort = llmAbort;
       result = await chatStream(
-        { baseUrl: provider.baseUrl, apiKey: provider.apiKey, model: provider.model, messages, tools: AGENT_TOOLS },
+        { baseUrl: provider.baseUrl, apiKey: provider.apiKey, model: provider.model, messages, tools: AGENT_TOOLS, reasoningEffort: state.settings.reasoning },
         msg.onDelta,
         llmAbort.signal
       );

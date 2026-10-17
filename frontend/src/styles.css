@@ -1447,3 +1447,36 @@ pre.codeblock {
 @keyframes muWobble { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-4deg); } 75% { transform: rotate(4deg); } }
 
 .landing .mascot { filter: drop-shadow(0 8px 24px rgba(0,0,0,0.18)); }
+
+/* ---------- risk badges ---------- */
+.risk-badge { font-size: 10px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--muted); flex: 0 0 auto; }
+.risk-badge.write { color: #d9a520; border-color: rgba(217,165,32,.4); }
+.risk-badge.network { color: #4a9eda; border-color: rgba(74,158,218,.4); }
+.risk-badge.destructive { color: #fff; background: var(--accent-strong); border-color: var(--accent-strong); font-weight: 700; }
+
+/* ---------- code blocks ---------- */
+.codeblock-wrap { margin: 6px 0 10px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--cmd-bg); }
+.codeblock-bar { display: flex; align-items: center; justify-content: space-between; padding: 4px 10px; background: var(--elev); border-bottom: 1px solid var(--border); }
+.cb-lang { font-family: var(--mono); font-size: 10.5px; color: var(--faint); text-transform: uppercase; letter-spacing: .5px; }
+.cb-copy { font-size: 11px; color: var(--muted); padding: 2px 8px; border-radius: 5px; }
+.cb-copy:hover { background: var(--hover); color: var(--text); }
+pre.codeblock { margin: 0; border: none; border-radius: 0; background: transparent; }
+.tk-kw { color: #c678dd; } .tk-str { color: #98c379; } .tk-com { color: #5c6370; font-style: italic; } .tk-num { color: #d19a66; }
+[data-theme="light"] .tk-kw { color: #a626a4; } [data-theme="light"] .tk-str { color: #50a14f; } [data-theme="light"] .tk-com { color: #a0a1a7; } [data-theme="light"] .tk-num { color: #986801; }
+
+/* ---------- tables ---------- */
+.md-table { border-collapse: collapse; margin: 8px 0; font-size: 13px; width: 100%; }
+.md-table th, .md-table td { border: 1px solid var(--border-strong); padding: 6px 10px; text-align: left; }
+.md-table th { background: var(--elev); font-weight: 600; }
+
+/* ---------- mermaid ---------- */
+.mermaid-box { margin: 8px 0; padding: 12px; background: var(--cmd-bg); border: 1px solid var(--border); border-radius: 8px; overflow-x: auto; display: flex; justify-content: center; }
+.mermaid-box svg { max-width: 100%; height: auto; }
+
+/* ---------- find bar ---------- */
+.find-bar { position: sticky; top: 8px; z-index: 45; display: flex; align-items: center; gap: 4px; margin: 8px auto 0; max-width: 340px; background: var(--elev); border: 1px solid var(--border-strong); border-radius: 10px; padding: 4px 8px; box-shadow: var(--shadow); animation: popIn .14s ease both; }
+.find-bar input { flex: 1; font-size: 12.5px; padding: 4px; min-width: 0; }
+
+/* ---------- automations ---------- */
+.auto-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; }
+.auto-row:hover { background: var(--hover); }

@@ -85,11 +85,11 @@ export const AGENT_TOOLS = [
   },
 ];
 
-export async function chatStream({ baseUrl, apiKey, model, messages, tools, temperature = 0.2 }, onTextDelta, signal) {
+export async function chatStream({ baseUrl, apiKey, model, messages, tools, temperature = 0.2, reasoningEffort }, onTextDelta, signal) {
   const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, tools, tool_choice: "auto", stream: true, temperature }),
+    body: JSON.stringify({ model, messages, tools, tool_choice: "auto", stream: true, temperature, ...(reasoningEffort && reasoningEffort !== "default" ? { reasoning_effort: reasoningEffort } : {}) }),
     signal,
   });
   if (!res.ok) {
