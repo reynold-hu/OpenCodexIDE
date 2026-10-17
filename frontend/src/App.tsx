@@ -662,10 +662,7 @@ export default function App() {
   const modelForThread = (thread?.model || settings.model)!;
   const modeForThread = (thread?.approvalMode || settings.approvalMode)!;
   const grouped = groupBlocks(blocks);
-  const approxTokens = useMemo(() => {
-    const chars = blocks.reduce((sum: number, b: any) => sum + (b.kind === "prompt" ? String(b.text).length : b.kind === "agent_message" ? String(b.text).length : 0), 0);
-    return Math.round(chars / 3);
-  }, [blocks]);
+  const approxTokens = Math.round(blocks.reduce((sum: number, b: any) => sum + (b.kind === "prompt" || b.kind === "agent_message" ? String(b.text || "").length : 0), 0) / 3);
   const childChats = thread ? threads.filter((t) => t.sideOf === thread.id) : [];
 
   return (
