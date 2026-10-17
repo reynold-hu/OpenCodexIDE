@@ -80,7 +80,7 @@ export interface FileChangeItem {
 }
 
 export type Block =
-  | { kind: "prompt"; text: string }
+  | { kind: "prompt"; text: string; ts?: number; checkpoint?: string | null }
   | { kind: "agent_message"; id: string; text: string; done: boolean; feedback?: string | null; ts?: number }
   | { kind: "plan"; id: string; items: PlanItem[] }
   | {

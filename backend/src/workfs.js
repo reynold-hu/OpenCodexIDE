@@ -179,3 +179,20 @@ export function writeBinary(dir, rel, base64) {
   fs.writeFileSync(p, Buffer.from(base64, "base64"));
   return rel;
 }
+
+export async function gitCheckpoint(dir, message) {
+  try {
+    await execFileAsync("git", ["add", "-A"], { cwd: dir });
+    await execFileAsync("git", ["commit", "-q", "--allow-empty", "-m", message], { cwd: dir });
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: dir });
+    return stdout.trim();
+  } catch {
+    return null;
+  }
+}
+
+export async function gitRestore(dir, hash) {
+  if (!/^[0-9a-f]{7,40}$/.test(hash)) throw new Error("bad hash");
+  await execFileAsync("git", ["reset", "--hard", hash], { cwd: dir });
+  return hash;
+}

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import type { Block, FileChangeItem } from "../types";
 import { Markdown } from "../Markdown";
-import { IconCheck, IconChevron, IconShield, IconX, IconFile, IconGlobe, IconUndo, IconCopy, IconThumbUp, IconThumbDown, IconSpeaker, IconExternal, IconCalendar } from "../icons";
+import { IconCheck, IconChevron, IconShield, IconX, IconFile, IconGlobe, IconUndo, IconCopy, IconThumbUp, IconThumbDown, IconSpeaker, IconExternal, IconCalendar, IconPencil } from "../icons";
 
 export function DiffView({ patch }: { patch: string }) {
   const lines = patch.split("\n");
@@ -229,8 +229,39 @@ export function ProcessCard({ block, projectId }: { block: Extract<Block, { kind
   );
 }
 
+export function UserBubble({ block, onRevise, onRestore }: { block: Extract<Block, { kind: "prompt" }>; onRevise?: (ts: number, newPrompt: string) => void; onRestore?: (hash: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(block.text);
+  if (editing) {
+    return (
+      <div className="user-row user-edit">
+        <textarea value={draft} rows={2} onChange={(e) => setDraft(e.target.value)} autoFocus />
+        <div className="ue-actions">
+          <button className="btn primary" onClick={() => { setEditing(false); if (draft.trim() && block.ts) onRevise?.(block.ts, draft.trim()); }}>保存并重跑</button>
+          <button className="btn" onClick={() => { setEditing(false); setDraft(block.text); }}>取消</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="user-wrap">
+      <div className="user-row">{block.text}</div>
+      <div className="user-actions">
+        {block.ts && onRevise && (
+          <button className="ua-btn" title="编辑并重跑" onClick={() => setEditing(true)}><IconPencil size={11} /></button>
+        )}
+        {block.checkpoint && onRestore && (
+          <button className="ua-btn" title={`回退到此轮之前 (${block.checkpoint.slice(0, 7)})`} onClick={() => onRestore(block.checkpoint!)}><IconUndo size={11} /></button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function BlockView({
   block,
+  onRevise,
+  onRestore,
   onApprove,
   onUndoFiles,
   onViewChanges,
@@ -251,10 +282,12 @@ export function BlockView({
   threadId?: string;
   onFeedback?: (eventId: string, v: "up" | "down") => void;
   projectId?: string;
+  onRevise?: (ts: number, newPrompt: string) => void;
+  onRestore?: (hash: string) => void;
 }) {
   switch (block.kind) {
     case "prompt":
-      return <div className="user-row">{block.text}</div>;
+      return <UserBubble block={block} onRevise={onRevise} onRestore={onRestore} />;
     case "agent_message":
       return (
         <div style={{ width: "100%" }}>

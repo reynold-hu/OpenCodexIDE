@@ -39,6 +39,8 @@ export const api = {
   procLog: (projectId: string, pid: string) => fetch(`/api/projects/${projectId}/processes/${pid}/log`).then(j<{ log: string }>),
   outputs: () => fetch("/api/outputs").then(j<{ kind: "file" | "site"; path: string; url?: string; ts: number; thread: string; threadId: string }[]>),
   addSource: (threadId: string, url: string, title?: string) => fetch(`/api/threads/${threadId}/source`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url, title }) }).then(j<{ ok: boolean }>),
+  restore: (threadId: string, hash: string) => fetch(`/api/threads/${threadId}/restore`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hash }) }).then(j<{ ok: boolean }>),
+  revise: (threadId: string, turnTs: number, prompt: string) => fetch(`/api/threads/${threadId}/revise`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ turnTs, prompt }) }).then(j<{ ok: boolean }>),
   cancel: (threadId: string) => fetch(`/api/threads/${threadId}/cancel`, { method: "POST" }).then(j<{ ok: boolean }>),
   search: (q: string) => fetch(`/api/search?q=${encodeURIComponent(q)}`).then(j<{ id: string; title: string; updatedAt: number; sample: string[] }[]>),
   branches: (projectId: string) => fetch(`/api/projects/${projectId}/git/branches`).then(j<{ name: string; current: boolean }[]>),

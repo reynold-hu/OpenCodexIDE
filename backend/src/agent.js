@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { shellExec, writeFileInWorkspace, gitStatus, tree, readFileLimited, ensureWorkspace } from "./workfs.js";
+import { shellExec, writeFileInWorkspace, gitStatus, tree, readFileLimited, ensureWorkspace, gitCheckpoint } from "./workfs.js";
 import { workspacePath, save } from "./store.js";
 import { chatStream, AGENT_TOOLS } from "./llm.js";
 import { effectiveProvider, isRealProvider } from "./providers.js";
@@ -67,6 +67,20 @@ export class TurnBus {
 export const bus = new TurnBus();
 
 const activeTurns = new Map(); // threadId -> { aborted, child, llmAbort }
+export const steerQueue = new Map(); // threadId -> [prompts]
+
+export function enqueueSteer(threadId, prompt) {
+  if (!steerQueue.has(threadId)) steerQueue.set(threadId, []);
+  steerQueue.get(threadId).push(prompt);
+  bus.broadcast(threadId, { type: "queue_update", items: steerQueue.get(threadId) });
+}
+
+export function drainSteer(threadId) {
+  const q = steerQueue.get(threadId) || [];
+  steerQueue.set(threadId, []);
+  if (q.length) bus.broadcast(threadId, { type: "queue_update", items: [] });
+  return q;
+}
 
 export function cancelTurn(threadId) {
   const t = activeTurns.get(threadId);
@@ -474,17 +488,22 @@ async function streamLLMAgentMessage(state, thread) {
   };
 }
 
-async function runTurnReal(state, thread, prompt, provider, dirIn, displayPrompt) {
+async function runTurnReal(state, thread, prompt, provider, dirIn, displayPrompt, checkpoint) {
   const project = threadProject(state, thread);
   const dir = dirIn || workspacePath(project);
   thread.status = "running";
-  pushEvent(state, thread, { type: "turn_started", prompt: displayPrompt || prompt, ts: Date.now() });
+  pushEvent(state, thread, { type: "turn_started", prompt: displayPrompt || prompt, checkpoint: checkpoint || null, ts: Date.now() });
   await sleep(150);
 
   let planId = null;
+  let agentsMd = "";
+  try {
+    const f = readFileLimited(dir, "AGENTS.md");
+    if (!f.truncated && f.content.trim()) agentsMd = `\n\nProject conventions (AGENTS.md — follow these):\n${f.content.slice(0, 4000)}`;
+  } catch {}
   const history = transcriptFromEvents(thread.events.slice(0, -1));
   const messages = [
-    { role: "system", content: REAL_SYSTEM_PROMPT(dir, project.name, provider.model) },
+    { role: "system", content: REAL_SYSTEM_PROMPT(dir, project.name, provider.model) + agentsMd },
     ...(thread.compactNote ? [{ role: "system", content: thread.compactNote }] : []),
     ...history,
     { role: "user", content: prompt },
@@ -607,7 +626,12 @@ async function runTurnReal(state, thread, prompt, provider, dirIn, displayPrompt
         ? { tool_calls: result.toolCalls.map((t, i) => ({ id: t.id || `call_${i}`, type: "function", function: { name: t.name, arguments: t.args } })) }
         : {}),
     });
-    if (!result.toolCalls.length) break;
+    const steers = drainSteer(thread.id);
+    for (const st of steers) {
+      pushEvent(state, thread, { type: "steer", prompt: st, ts: Date.now() });
+      messages.push({ role: "user", content: `[steering] ${st}` });
+    }
+    if (!result.toolCalls.length && !steers.length) break;
     for (const tc of result.toolCalls) {
       const out = await runTool(tc);
       messages.push({ role: "tool", tool_call_id: tc.id || "", name: tc.name, content: String(out).slice(0, 16000) });
@@ -692,9 +716,10 @@ export async function runTurn(state, thread, prompt) {
       const handled = await runSlashCommand(state, thread, dir, prompt);
       if (handled) return;
     }
+    const checkpoint = await gitCheckpoint(dir, `ocx-checkpoint ${thread.id} ${Date.now()}`);
     const expanded = await expandMentions(dir, prompt);
     if (isRealProvider(provider)) {
-      return await runTurnReal(state, thread, expanded, provider, dir, prompt);
+      return await runTurnReal(state, thread, expanded, provider, dir, prompt, checkpoint);
     }
     if (provider.id !== "simulated") {
       thread.status = "running";
@@ -703,18 +728,18 @@ export async function runTurn(state, thread, prompt) {
       thread.status = "idle";
       return;
     }
-    return await runSimulatedTurn(state, thread, expanded, dir, prompt);
+    return await runSimulatedTurn(state, thread, expanded, dir, prompt, checkpoint);
   } finally {
     activeTurns.delete(thread.id);
   }
 }
 
-async function runSimulatedTurn(state, thread, prompt, dir, displayPrompt) {
+async function runSimulatedTurn(state, thread, prompt, dir, displayPrompt, checkpoint) {
   const task = detectTask(prompt);
   const planId = uid("plan");
 
   thread.status = "running";
-  pushEvent(state, thread, { type: "turn_started", prompt: displayPrompt || prompt, ts: Date.now() });
+  pushEvent(state, thread, { type: "turn_started", prompt: displayPrompt || prompt, checkpoint: checkpoint || null, ts: Date.now() });
   await sleep(220);
 
   const plans = {

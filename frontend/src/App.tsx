@@ -10,7 +10,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { NavRail, type RailView } from "./components/NavRail";
 import { ThreadMenu } from "./components/ThreadMenu";
 import { SummaryPanel } from "./components/SummaryPanel";
-import { IconPanel, IconSummary, IconPlus, IconArrowDown } from "./icons";
+import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX } from "./icons";
 
 const CHIPS = [
   "Create a calculator in JavaScript",
@@ -27,7 +27,7 @@ function blocksFromEvents(events: any[]): Block[] {
   for (const ev of events) {
     switch (ev.type) {
       case "turn_started":
-        blocks.push({ kind: "prompt", text: ev.prompt });
+        blocks.push({ kind: "prompt", text: ev.prompt, ts: ev.ts, checkpoint: ev.checkpoint });
         break;
       case "plan":
         index.set(ev.id, blocks.length);
@@ -51,6 +51,12 @@ function blocksFromEvents(events: any[]): Block[] {
         break;
       case "subagent":
         blocks.push({ kind: "subagent", id: ev.id, prompt: ev.prompt, done: !!ev.done });
+        break;
+      case "steer":
+        blocks.push({ kind: "prompt", text: ev.prompt, ts: ev.ts });
+        break;
+      case "restored":
+        blocks.push({ kind: "error", message: `已回退到 checkpoint ${ev.hash}` });
         break;
       case "agent_message":
         index.set(ev.id, blocks.length);
@@ -133,6 +139,8 @@ export default function App() {
   const [allThreads, setAllThreads] = useState<ThreadMeta[]>([]);
   const [atBottom, setAtBottom] = useState(true);
   const [branches, setBranches] = useState<{ name: string; current: boolean }[]>([]);
+  const [queued, setQueued] = useState<string[]>([]);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const esRef = useRef<EventSource | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -183,9 +191,18 @@ export default function App() {
         setRunning(true);
         setBlocks((b) => {
           const last = b[b.length - 1];
-          if (last && last.kind === "prompt" && last.text === ev.prompt) return b;
-          return [...b, { kind: "prompt", text: ev.prompt }];
+          if (last && last.kind === "prompt" && last.text === ev.prompt && !last.ts) {
+            return [...b.slice(0, -1), { ...last, ts: ev.ts, checkpoint: ev.checkpoint }];
+          }
+          return [...b, { kind: "prompt", text: ev.prompt, ts: ev.ts, checkpoint: ev.checkpoint }];
         });
+        break;
+      case "steer":
+        setBlocks((b) => [...b, { kind: "prompt", text: ev.prompt, ts: ev.ts }]);
+        break;
+      case "restored":
+        setBlocks((b) => [...b, { kind: "error", message: `已回退到 checkpoint ${ev.hash}` }]);
+        setRefreshToken((r) => r + 1);
         break;
       case "plan":
         setBlocks((b) => [...b, { kind: "plan", id: ev.id, items: ev.items }]);
@@ -207,6 +224,9 @@ export default function App() {
         break;
       case "command_result":
         setBlocks((b) => b.map((x) => (x.kind === "command" && x.id === ev.id ? { ...x, status: ev.status, output: ev.output, code: ev.code, durationMs: ev.durationMs } : x)));
+        break;
+      case "queue_update":
+        setQueued(ev.items || []);
         break;
       case "turn_cancelled":
         setRunning(false);
@@ -282,7 +302,7 @@ export default function App() {
     setRunning(full.status === "running");
     const es = new EventSource(api.streamUrl(t.id));
     esRef.current = es;
-    for (const type of ["turn_started", "plan", "plan_update", "command", "command_update", "command_result", "command_output", "turn_cancelled", "file_change", "files_reverted", "preview_ready", "process", "source", "subagent", "subagent_update", "agent_message", "agent_message_delta", "agent_message_done", "approval_request", "turn_complete", "turn_error"]) {
+    for (const type of ["turn_started", "plan", "plan_update", "command", "command_update", "command_result", "command_output", "turn_cancelled", "queue_update", "steer", "restored", "file_change", "files_reverted", "preview_ready", "process", "source", "subagent", "subagent_update", "agent_message", "agent_message_delta", "agent_message_done", "approval_request", "turn_complete", "turn_error"]) {
       es.addEventListener(type, (e: MessageEvent) => {
         try {
           handleEvent(JSON.parse(e.data));
@@ -348,6 +368,12 @@ export default function App() {
         setInput("");
       }
       const created = t;
+      if (running) {
+        setInput("");
+        setQueued((q) => [...q, text]);
+        await api.prompt(created.id, text);
+        return;
+      }
       await openThread(created);
       setInput("");
       setBlocks((b) => [...b, { kind: "prompt", text }]);
@@ -363,6 +389,21 @@ export default function App() {
   const stopTurn = useCallback(async () => {
     if (!thread) return;
     await api.cancel(thread.id);
+  }, [thread]);
+
+  const restoreCheckpoint = useCallback(async (hash: string) => {
+    if (!thread) return;
+    if (!confirm(`回退到该轮开始前的工作区状态?\ncheckpoint ${hash.slice(0, 7)}`)) return;
+    await api.restore(thread.id, hash);
+  }, [thread]);
+
+  const reviseTurn = useCallback(async (ts: number, newPrompt: string) => {
+    if (!thread) return;
+    const full = await api.thread(thread.id);
+    const idx = full.events.findIndex((e: any) => e.type === "turn_started" && e.ts === ts);
+    setBlocks(blocksFromEvents(full.events.slice(0, idx)));
+    await api.revise(thread.id, ts, newPrompt);
+    setRunning(true);
   }, [thread]);
 
   const undoFiles = useCallback(
@@ -496,9 +537,13 @@ export default function App() {
           e.preventDefault();
           openSideChat();
         }
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "/") {
+        e.preventDefault();
+        setShortcutsOpen((v) => !v);
       } else if (e.key === "Escape") {
         setPaletteOpen(false);
         setSettingsOpen(false);
+        setShortcutsOpen(false);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -695,6 +740,8 @@ export default function App() {
                         threadId={thread?.id}
                         onFeedback={setFeedback}
                         projectId={project?.id}
+                        onRevise={reviseTurn}
+                        onRestore={restoreCheckpoint}
                       />
                     </div>
                   ))}
@@ -710,6 +757,19 @@ export default function App() {
                 <button className="scroll-bottom" onClick={jumpBottom} title="回到底部">
                   <IconArrowDown size={16} />
                 </button>
+              )}
+              {queued.length > 0 && (
+                <div className="queued-row">
+                  <span className="qr-label">插话队列:</span>
+                  {queued.map((q, i) => <span key={i} className="qr-chip">{q.slice(0, 30)}{q.length > 30 ? "…" : ""}</span>)}
+                </div>
+              )}
+              {!running && thread && blocks.length > 0 && (
+                <div className="followups">
+                  {["跑一下测试看看有没有问题", "把这批变更提交", "继续完善并补充说明文档"].map((f) => (
+                    <button key={f} className="chip" onClick={() => send(f)}>{f}</button>
+                  ))}
+                </div>
               )}
               <div className="composer-wrap">
                 <div className="composer-inner">
@@ -778,6 +838,22 @@ export default function App() {
 
       {paletteOpen && (
         <CommandPalette threads={threads} onOpenThread={openThread} actions={paletteActions} onClose={() => setPaletteOpen(false)} />
+      )}
+
+      {shortcutsOpen && (
+        <div className="overlay" onMouseDown={() => setShortcutsOpen(false)} style={{ alignItems: "flex-start", paddingTop: "12vh" }}>
+          <div className="modal" style={{ width: 420 }} onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modal-head"><h2>键盘快捷键</h2><button className="icon-btn" onClick={() => setShortcutsOpen(false)}><IconX size={15} /></button></div>
+            <div className="modal-body">
+              {[["⌘K", "命令面板"], ["⌘N", "新对话"], ["⌘S", "新建侧边聊天"], ["⌘P", "文件面板"], ["^`", "终端面板"], ["⌥⌘R", "重命名(菜单)"], ["⌘/", "本帮助"], ["Enter", "发送 / 运行中插话"], ["Shift+Enter", "换行"], ["Esc", "关闭弹层"]].map(([k, d]) => (
+                <div key={k} className="set-row" style={{ padding: "8px 2px" }}>
+                  <span className="sr-label sr-title" style={{ fontWeight: 400, fontSize: 13 }}>{d}</span>
+                  <span className="pi-kbd" style={{ fontSize: 12 }}>{k}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && <div className="toast">{toast}</div>}

@@ -5,8 +5,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { load, save, saveNow, resetAll, workspacePath, DATA_HOME } from "./store.js";
-import { runTurn, bus, cancelTurn } from "./agent.js";
-import { ensureWorkspace, tree, readFileLimited, writeFileInWorkspace, gitStatus, gitDiff, gitCommitAll, shellExec, revertPath, writeBinary } from "./workfs.js";
+import { runTurn, bus, cancelTurn, enqueueSteer } from "./agent.js";
+import { ensureWorkspace, tree, readFileLimited, writeFileInWorkspace, gitStatus, gitDiff, gitCommitAll, shellExec, revertPath, writeBinary, gitRestore } from "./workfs.js";
 import { PROVIDER_PRESETS, providerRuntime, effectiveProvider, sanitizeSettings, mergeProviderConfig } from "./providers.js";
 import { listRemoteModels } from "./llm.js";
 import { startProcess, listProcesses, stopProcess, tailLog } from "./procs.js";
@@ -265,7 +265,10 @@ app.post("/api/threads/:id/prompt", (req, res) => {
   if (!t) return res.status(404).json({ error: "not found" });
   const prompt = String(req.body?.prompt || "").trim();
   if (!prompt) return res.status(400).json({ error: "empty prompt" });
-  if (t.status === "running") return res.status(409).json({ error: "turn already running" });
+  if (t.status === "running") {
+    enqueueSteer(t.id, prompt);
+    return res.json({ ok: true, queued: true });
+  }
   t.updatedAt = Date.now();
   res.json({ ok: true, turnStarted: true });
   runTurn(state, t, prompt)
@@ -300,6 +303,44 @@ app.post("/api/approvals/:id", (req, res) => {
   res.json({ ok });
 });
 
+app.post("/api/threads/:id/restore", (req, res) => {
+  const t = findThread(req.params.id);
+  if (!t) return res.status(404).json({ error: "not found" });
+  const project = findProject(t.projectId);
+  if (!project) return res.status(400).json({ error: "no project" });
+  const hash = String(req.body?.hash || "");
+  (async () => {
+    try {
+      await gitRestore(workspacePath(project), hash);
+      const ev = { type: "restored", hash: hash.slice(0, 8), ts: Date.now() };
+      t.events.push(ev);
+      bus.broadcast(t.id, ev);
+      save();
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  })();
+});
+app.post("/api/threads/:id/revise", (req, res) => {
+  const t = findThread(req.params.id);
+  if (!t) return res.status(404).json({ error: "not found" });
+  if (t.status === "running") return res.status(409).json({ error: "turn running" });
+  const ts = Number(req.body?.turnTs);
+  const prompt = String(req.body?.prompt || "").trim();
+  if (!prompt) return res.status(400).json({ error: "empty prompt" });
+  const idx = t.events.findIndex((e) => e.type === "turn_started" && e.ts === ts);
+  if (idx === -1) return res.status(404).json({ error: "turn not found" });
+  t.events = t.events.slice(0, idx);
+  res.json({ ok: true, turnStarted: true });
+  runTurn(state, t, prompt)
+    .then(() => save())
+    .catch((e) => {
+      t.status = "idle";
+      bus.broadcast(t.id, { type: "turn_error", message: String(e.message || e) });
+      save();
+    });
+});
 app.post("/api/threads/:id/cancel", (req, res) => {
   const t = findThread(req.params.id);
   if (!t) return res.status(404).json({ error: "not found" });

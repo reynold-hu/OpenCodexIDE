@@ -119,7 +119,7 @@ export function Composer({
 
   const send = () => {
     const v = value.trim();
-    if (!v || running) return;
+    if (!v) return;
     onSend(v);
   };
 
