@@ -40,6 +40,15 @@ export interface Project {
   createdAt: number;
 }
 
+export interface AgentDef {
+  id: string;
+  name: string;
+  color: string;
+  shape: string;
+  instructions: string;
+  builtin: boolean;
+}
+
 export interface ScheduledTask {
   id: string;
   prompt: string;
@@ -77,6 +86,15 @@ export interface PlanItem {
   done: boolean;
 }
 
+export interface SwarmAgent {
+  agentId: string;
+  name: string;
+  color: string;
+  shape: string;
+  status: "queued" | "working" | "done";
+  summary: string;
+}
+
 export interface FileChangeItem {
   path: string;
   additions: number;
@@ -110,6 +128,7 @@ export type Block =
   | { kind: "subagent"; id: string; prompt: string; done: boolean }
   | { kind: "annotation"; quote: string; note: string }
   | { kind: "cloud_pc"; state: string }
+  | { kind: "swarm"; id: string; task: string; agents: SwarmAgent[]; done: boolean }
   | { kind: "turn_complete" }
   | { kind: "error"; message: string };
 

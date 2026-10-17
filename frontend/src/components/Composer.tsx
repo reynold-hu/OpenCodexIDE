@@ -50,6 +50,8 @@ export function Composer({
   onStop,
   reasoning,
   onReasoning,
+  teamMode,
+  onTeamMode,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -66,6 +68,8 @@ export function Composer({
   onStop?: () => void;
   reasoning?: string;
   onReasoning?: (r: string) => void;
+  teamMode?: boolean;
+  onTeamMode?: (v: boolean) => void;
 }) {
   const [modelOpen, setModelOpen] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
@@ -237,6 +241,12 @@ export function Composer({
           </PillMenu>
         </div>
 
+        {onTeamMode && (
+          <button className={`pill ${teamMode ? "team-on" : ""}`} title="团队模式:任务分发给多个专职 agent 并行处理" onClick={() => onTeamMode(!teamMode)}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="9" cy="7" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3 20a6 6 0 0 1 12 0M14.5 20a5 5 0 0 1 6.5-4.8" /></svg>
+            {teamMode ? "团队" : "单人"}
+          </button>
+        )}
         {onReasoning && (
           <div style={{ position: "relative" }}>
             <button className="pill" onClick={() => setReasonOpen(!reasonOpen)}>◈ {reasoning || "auto"}<IconChevron size={11} dir={reasonOpen ? "up" : "down"} /></button>

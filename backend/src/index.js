@@ -4,8 +4,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
-import { load, save, saveNow, resetAll, workspacePath, DATA_HOME } from "./store.js";
-import { runTurn, bus, cancelTurn, enqueueSteer, attachWorktree, detachWorktree, resolveThreadDir } from "./agent.js";
+import { load, save, saveNow, resetAll, workspacePath, DATA_HOME, PRODUCT, PORTS } from "./store.js";
+import { runTurn, bus, cancelTurn, enqueueSteer, attachWorktree, detachWorktree, resolveThreadDir, runSwarm } from "./agent.js";
+import { BUILTIN_AGENTS } from "./roles.js";
 import { ensureWorkspace, tree, readFileLimited, writeFileInWorkspace, gitStatus, gitDiff, gitCommitAll, shellExec, revertPath, writeBinary, gitRestore } from "./workfs.js";
 import { PROVIDER_PRESETS, providerRuntime, effectiveProvider, sanitizeSettings, mergeProviderConfig } from "./providers.js";
 import { listRemoteModels } from "./llm.js";
@@ -15,12 +16,27 @@ import { promisify as _promisify } from "node:util";
 const execFilePromise = _promisify(execFile);
 
 const app = express();
-const PORT = process.env.PORT || 8787;
+const PORT = process.env.PORT || PORTS[PRODUCT];
 const SHOTS_DIR = path.join(DATA_HOME, "shots");
 fs.mkdirSync(SHOTS_DIR, { recursive: true });
 
 app.use(cors());
 app.use(express.json({ limit: "16mb" }));
+
+// product route surface guard: IDE/fs routes belong to codex only
+app.use((req, res, next) => {
+  const m = req.path.match(/^\/api\/projects\/[^/]+\/([a-z]+)/);
+  const seg = m?.[1];
+  const isFs = !!seg && ["tree", "git", "terminal", "commit", "processes", "open", "upload", "screenshot", "diff", "branches", "checkout"].includes(seg);
+  const isIdeThread = /\/api\/threads\/[^/]+\/(worktree|undo|restore)/.test(req.path) || req.path === "/api/outputs";
+  const isStatic = req.path.startsWith("/preview/") || req.path.startsWith("/shots/");
+  const fileRead = seg === "file" && req.method === "GET";
+  const allowedForChat = ["claude", "muse"].includes(PRODUCT) && (isStatic || fileRead || seg === "file" && req.method === "POST");
+  if ((isFs || isIdeThread || isStatic) && PRODUCT !== "codex" && !allowedForChat) {
+    return res.status(404).json({ error: `route not available in ${PRODUCT}` });
+  }
+  next();
+});
 
 const uid = (p) => `${p}_${crypto.randomBytes(6).toString("hex")}`;
 const state = load();
@@ -123,7 +139,7 @@ app.delete("/api/projects/:id", (req, res) => {
 // ---------- threads ----------
 app.get("/api/threads", (req, res) => {
   const projectId = req.query.projectId;
-  let list = state.threads;
+  let list = state.threads.filter((t) => (t.product || "codex") === PRODUCT);
   if (projectId) list = list.filter((t) => t.projectId === projectId);
   if (!req.query.archived) list = list.filter((t) => !t.archived);
   res.json(list.map(({ events, ...t }) => ({ ...t, messageCount: events.length })));
@@ -139,6 +155,7 @@ app.post("/api/threads", (req, res) => {
   const t = {
     id: uid("thr"),
     projectId,
+    product: PRODUCT,
     title: req.body?.title || "",
     status: "idle",
     model: state.settings.model,
@@ -271,7 +288,10 @@ app.post("/api/threads/:id/prompt", (req, res) => {
   }
   t.updatedAt = Date.now();
   res.json({ ok: true, turnStarted: true });
-  runTurn(state, t, prompt)
+  const useTeam = req.body?.team || String(prompt).trim().startsWith("/team");
+  const teamTask = useTeam && String(prompt).trim().startsWith("/team") ? String(prompt).trim().slice(5).trim() : prompt;
+  const go = useTeam ? runSwarm(state, t, teamTask, req.body?.agents) : runTurn(state, t, prompt);
+  go
     .then(() => save())
     .catch((e) => {
       console.error("turn failed", e);
@@ -333,7 +353,10 @@ app.post("/api/threads/:id/revise", (req, res) => {
   if (idx === -1) return res.status(404).json({ error: "turn not found" });
   t.events = t.events.slice(0, idx);
   res.json({ ok: true, turnStarted: true });
-  runTurn(state, t, prompt)
+  const useTeam = req.body?.team || String(prompt).trim().startsWith("/team");
+  const teamTask = useTeam && String(prompt).trim().startsWith("/team") ? String(prompt).trim().slice(5).trim() : prompt;
+  const go = useTeam ? runSwarm(state, t, teamTask, req.body?.agents) : runTurn(state, t, prompt);
+  go
     .then(() => save())
     .catch((e) => {
       t.status = "idle";
@@ -662,6 +685,43 @@ app.patch("/api/threads/:id/schedule/:taskId", (req, res) => {
   saveNow();
   res.json({ ok: true });
 });
+app.get("/api/agents", (req, res) => res.json([...BUILTIN_AGENTS, ...(state.agents || [])]));
+app.post("/api/agents", (req, res) => {
+  const a = {
+    id: uid("ag"),
+    name: String(req.body?.name || "自定义 Agent").slice(0, 24),
+    color: /^#[0-9a-fA-F]{6}$/.test(req.body?.color || "") ? req.body.color : "#7c6df2",
+    shape: ["hex", "square", "triangle", "circle", "diamond", "round"].includes(req.body?.shape) ? req.body.shape : "round",
+    instructions: String(req.body?.instructions || "").slice(0, 600),
+    builtin: false,
+  };
+  if (!a.instructions) return res.status(400).json({ error: "instructions required" });
+  state.agents = state.agents || [];
+  state.agents.push(a);
+  saveNow();
+  res.json(a);
+});
+app.delete("/api/agents/:id", (req, res) => {
+  const i = (state.agents || []).findIndex((a) => a.id === req.params.id);
+  if (i === -1) return res.status(404).json({ error: "not found (built-ins cannot be deleted)" });
+  state.agents.splice(i, 1);
+  saveNow();
+  res.json({ ok: true });
+});
+app.get("/api/artifacts", (req, res) => {
+  const projectId = req.query.projectId;
+  const out = [];
+  for (const t of state.threads) {
+    if ((t.product || "codex") !== PRODUCT) continue;
+    if (projectId && t.projectId !== projectId) continue;
+    for (const ev of t.events) {
+      if (ev.type === "file_change" && !ev.reverted) out.push({ path: ev.path, ts: ev.ts, threadId: t.id, threadTitle: t.title || "chat", additions: ev.additions, deletions: ev.deletions });
+      else if (ev.type === "preview_ready") out.push({ path: ev.path, ts: ev.ts, threadId: t.id, threadTitle: t.title || "chat", url: ev.url, site: true });
+    }
+  }
+  out.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  res.json(out.slice(0, 60));
+});
 app.get("/api/outputs", (req, res) => {
   const out = [];
   for (const t of state.threads) {
@@ -699,7 +759,7 @@ setInterval(() => {
 }, 20000);
 
 // ---------- health ----------
-app.get("/api/health", (req, res) => res.json({ ok: true, name: "Open Every Agent IDE", version: "0.1.0" }));
+app.get("/api/health", (req, res) => res.json({ ok: true, name: "Open Every Agent IDE", product: PRODUCT, version: "0.1.0" }));
 
 await bootstrap();
 app.listen(PORT, () => console.log(`Open Every Agent IDE backend on http://localhost:${PORT}`));

@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-const DATA_HOME = process.env.OPEN_CODEX_HOME || path.join(os.homedir(), ".open-codex-ide");
+export const PRODUCT = ["codex", "claude", "muse", "grok"].includes(process.env.PRODUCT) ? process.env.PRODUCT : "codex";
+export const PORTS = { codex: 8787, claude: 8788, muse: 8789, grok: 8790 };
+const DATA_HOME = process.env.OPEN_CODEX_HOME || path.join(os.homedir(), ".open-every-agent", PRODUCT);
 const STATE_FILE = path.join(DATA_HOME, "state.json");
 const WORKSPACE_ROOT = path.join(DATA_HOME, "workspaces");
 
@@ -21,6 +23,7 @@ const DEFAULT_STATE = {
   },
   projects: [],
   threads: [],
+  agents: [],
 };
 
 function ensureDirs() {

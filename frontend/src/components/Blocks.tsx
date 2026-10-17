@@ -4,6 +4,7 @@ import { Markdown } from "../Markdown";
 import { IconCheck, IconChevron, IconShield, IconX, IconFile, IconGlobe, IconUndo, IconCopy, IconThumbUp, IconThumbDown, IconSpeaker, IconExternal, IconCalendar, IconPencil, IconProcess, IconLink } from "../icons";
 
 import { CloudPcCard } from "./CloudPanel";
+import { AgentAvatar } from "./AgentAvatar";
 
 export function DiffView({ patch }: { patch: string }) {
   const lines = patch.split("\n");
@@ -267,6 +268,35 @@ export function AnnotationCard({ block, onJump }: { block: Extract<Block, { kind
   );
 }
 
+export function SwarmCard({ block }: { block: Extract<Block, { kind: "swarm" }> }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const doneN = block.agents.filter((a) => a.status === "done").length;
+  return (
+    <div className="card swarm-card">
+      <div className="swarm-head">
+        <span className="sw-team">{block.agents.map((a) => <AgentAvatar key={a.agentId} color={a.color} shape={a.shape} size={20} pulse={a.status === "working"} />)}</span>
+        <span className="sw-title">团队协作 · {doneN}/{block.agents.length} 完成</span>
+        {!block.done && <span className="spinner" style={{ marginLeft: "auto" }} />}
+      </div>
+      <div className="swarm-agents">
+        {block.agents.map((a) => (
+          <div key={a.agentId} className="sw-row">
+            <button className="sw-toggle" onClick={() => setOpenId(openId === a.agentId ? null : a.agentId)}>
+              <AgentAvatar color={a.color} shape={a.shape} size={18} pulse={a.status === "working"} />
+              <span className="sw-name">{a.name}</span>
+              {a.status === "queued" && <span className="sw-st q">排队</span>}
+              {a.status === "working" && <span className="sw-st w">工作中</span>}
+              {a.status === "done" && <span className="sw-st d">✓ 完成</span>}
+              <IconChevron size={11} dir={openId === a.agentId ? "up" : "down"} style={{ color: "var(--faint)", marginLeft: "auto" }} />
+            </button>
+            {openId === a.agentId && a.summary && <div className="sw-summary"><Markdown text={a.summary} /></div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function UserBubble({ block, onRevise, onRestore }: { block: Extract<Block, { kind: "prompt" }>; onRevise?: (ts: number, newPrompt: string) => void; onRestore?: (hash: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(block.text);
@@ -352,6 +382,8 @@ export function BlockView({
     case "source":
     case "subagent":
       return null;
+    case "swarm":
+      return <SwarmCard block={block} />;
     case "cloud_pc":
       return <CloudPcCard state={block.state} mode={(typeof document !== "undefined" ? document.documentElement.getAttribute("data-app") : "codex") || "codex"} />;
     case "annotation":

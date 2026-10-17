@@ -8,6 +8,7 @@ import { workspacePath, save, DATA_HOME } from "./store.js";
 import { chatStream, AGENT_TOOLS } from "./llm.js";
 import { effectiveProvider, isRealProvider } from "./providers.js";
 import { startProcess } from "./procs.js";
+import { BUILTIN_AGENTS, selectAgents } from "./roles.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -765,8 +766,104 @@ async function runSlashCommand(state, thread, dir, prompt) {
   return false;
 }
 
-export async function runTurn(state, thread, prompt) {
+const SIM_ROLE_OUTPUT = {
+  ag_architect: (task) => `**方案**:围绕「${task.slice(0, 30)}」建议:入口文件 + 核心模块 + 数据层三层结构;先定接口再实现;风险点在并发写入与输入校验。`,
+  ag_coder: (task) => `**实现**:已给出可运行骨架思路;关键点是单一职责函数、显式错误处理、避免全局状态;建议先实现最小闭环再迭代。`,
+  ag_reviewer: (task) => `**审查清单**:①未处理的异常路径(major)②输入未校验(major)③硬编码配置(minor)④命名不一致(minor)。建议按严重度逐个修复。`,
+  ag_tester: (task) => `**用例**:正常路径 2 例、边界(空输入/超长输入/0 与负数)3 例、异常(依赖缺失/超时)2 例;建议加一条集成冒烟测试。`,
+  ag_researcher: (task) => `**现状**:工作区为独立项目、无既有约束;可选路径 A(纯前端)与 B(带本地 API),B 更贴近需求但复杂度略高。`,
+  ag_writer: (task) => `**文档**:已产出使用说明草稿:安装 → 启动 → 常见任务示例 → 故障排查四段式,语气面向最终用户。`,
+};
+
+export async function runSwarm(state, thread, task, agentIds) {
   const provider = effectiveProvider(state);
+  const project = threadProject(state, thread);
+  const dir = await resolveThreadDir(state, thread);
+  const roster = [...BUILTIN_AGENTS, ...(state.agents || [])];
+  const members = (agentIds && agentIds.length ? roster.filter((a) => agentIds.includes(a.id)) : selectAgents(task, roster)).slice(0, 4);
+  if (!members.length) throw new Error("no agents");
+
+  const id = uid("swarm");
+  thread.status = "running";
+  pushEvent(state, thread, { type: "turn_started", prompt: `[团队] ${task}`, ts: Date.now() });
+  pushEvent(state, thread, { type: "swarm_started", id, task, agents: members.map((m) => ({ agentId: m.id, name: m.name, color: m.color, shape: m.shape, status: "queued", summary: "" })), ts: Date.now() });
+
+  const update = (agentId, patch) => bus.broadcast(thread.id, { type: "swarm_agent", id, agentId, ...patch });
+  const runOne = async (m) => {
+    update(m.id, { status: "working" });
+    let summary;
+    if (isRealProvider(provider)) {
+      try {
+        const messages = [
+          { role: "system", content: `${m.instructions}\n\n你是团队中的「${m.name}」。任务:${task.slice(0, 400)}\n工作区:${dir}。可用只读工具核实事实。用中文输出不超过 180 字的要点结论。` },
+          { role: "user", content: task.slice(0, 1500) },
+        ];
+        const subTools = AGENT_TOOLS.filter((t) => ["run_command", "read_file"].includes(t.function.name));
+        let finalText = "";
+        for (let i = 0; i < 2; i++) {
+          const r = await chatStream({ baseUrl: provider.baseUrl, apiKey: provider.apiKey, model: provider.model, messages, tools: subTools });
+          finalText = r.content || finalText;
+          if (!r.toolCalls.length) break;
+          messages.push({ role: "assistant", content: r.content || null, tool_calls: r.toolCalls.map((t, j) => ({ id: t.id || `w${i}_${j}`, type: "function", function: { name: t.name, arguments: t.args } })) });
+          for (const tc of r.toolCalls) {
+            let args = {}; try { args = JSON.parse(tc.args || "{}"); } catch {}
+            let out;
+            if (tc.name === "run_command") { const r2 = await shellExec(dir, String(args.command || "ls").slice(0, 300), 12000); out = `exit ${r2.code}\n${(r2.stdout + r2.stderr).slice(0, 6000)}`; }
+            else { try { out = readFileLimited(dir, String(args.path || "")).content.slice(0, 8000); } catch (e) { out = `error ${e.message}`; } }
+            messages.push({ role: "tool", tool_call_id: tc.id || "", name: tc.name, content: out });
+          }
+        }
+        summary = finalText || "(无结论)";
+      } catch (e) {
+        summary = `(调用失败: ${e.message})`;
+      }
+    } else {
+      await sleep(600 + Math.random() * 1400);
+      summary = (SIM_ROLE_OUTPUT[m.id] || ((t) => `**${m.name}** 已完成分析并给出要点。`))(task);
+    }
+    update(m.id, { status: "done", summary });
+    const ev = thread.events.find((e) => e.type === "swarm_started" && e.id === id);
+    if (ev) { const a = ev.agents.find((x) => x.agentId === m.id); if (a) { a.status = "done"; a.summary = summary; } }
+    return { name: m.name, summary };
+  };
+
+  const results = await Promise.allSettled(members.map(runOne));
+  const done = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
+
+  let merged;
+  if (isRealProvider(provider)) {
+    try {
+      const r = await chatStream({
+        baseUrl: provider.baseUrl, apiKey: provider.apiKey, model: provider.model,
+        messages: [
+          { role: "system", content: "你是团队协调者。把各成员结论合并为一份简洁的最终中文答复:先结论,再分点,去重,标注分歧。" },
+          { role: "user", content: `任务:${task}\n\n成员结论:\n${done.map((d) => `【${d.name}】${d.summary}`).join("\n\n")}` },
+        ],
+      });
+      merged = r.content;
+    } catch { merged = null; }
+  }
+  if (!merged) merged = `**团队结论(${done.length}/${members.length} 成员完成)**\n\n` + done.map((d) => `- **${d.name}**:${String(d.summary).replace(/\*\*/g, "").slice(0, 120)}`).join("\n");
+
+  const msgId = uid("agent_message");
+  pushEvent(state, thread, { type: "agent_message", id: msgId, content: "", done: false, ts: Date.now() });
+  for (let i = 0; i < merged.length; i += 14) {
+    if (activeTurns.get(thread.id)?.aborted) break;
+    await sleep(14);
+    bus.broadcast(thread.id, { type: "agent_message_delta", id: msgId, content: merged.slice(i, i + 14) });
+  }
+  const mev = thread.events.find((e) => e.id === msgId);
+  if (mev) { mev.content = merged; mev.done = true; }
+  bus.broadcast(thread.id, { type: "agent_message_done", id: msgId, content: merged });
+
+  pushEvent(state, thread, { type: "swarm_done", id, ts: Date.now() });
+  thread.status = "idle";
+  if (!thread.title) thread.title = task.trim().slice(0, 42);
+  pushEvent(state, thread, { type: "turn_complete", ts: Date.now() });
+  save();
+}
+
+export async function runTurn(state, thread, prompt, req_agents) {  const provider = effectiveProvider(state);
   const project = threadProject(state, thread);
   if (!project) throw new Error("no project");
   const dir = await resolveThreadDir(state, thread);
@@ -785,6 +882,10 @@ export async function runTurn(state, thread, prompt) {
     setTimeout(() => bus.broadcast(thread.id, { type: "cloud_pc", state: "ready", ts: Date.now() }), 1600);
   }
   try {
+    if (prompt.trim().startsWith("/team")) {
+      const task = prompt.trim().slice(5).trim();
+      if (task) return runSwarm(state, thread, task, req_agents);
+    }
     if (prompt.trim().startsWith("/")) {
       const handled = await runSlashCommand(state, thread, dir, prompt);
       if (handled) return;

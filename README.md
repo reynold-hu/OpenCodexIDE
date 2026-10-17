@@ -51,13 +51,31 @@ machine, your workspace, your API keys, your model.
 > inspiration from publicly observed UX patterns of both ecosystems, and from
 > neither copies code, assets, or branding.
 
-## Four switchable app skins
+## Four independent products, one monorepo
 
-One backend, four frontends — switch instantly from the title bar. Each skin is an
+Each product is a **separate frontend + backend process with its own API surface,
+port and data directory** — not a reskinned single app. Pick what to run at launch:
+
+```bash
+npm run dev:codex    # IDE surface   :5175 → :8787   ~/.open-every-agent/codex
+npm run dev:claude   # chat+artifacts:5176 → :8788   ~/.open-every-agent/claude
+npm run dev:muse     # studio+voice :5177 → :8789   ~/.open-every-agent/muse
+npm run dev:grok     # agent team   :5178 → :8790   ~/.open-every-agent/grok
+```
+
+| Product | Paradigm | API surface (guarded per product) |
+| --- | --- | --- |
+| **Codex** | agentic IDE: sidebar threads, plan/command/diff cards, worktrees, checkpoints, steering, terminal, Review/Files/Canvas/Browser panels, ⌘K | full: fs/git/terminal/worktree/preview/processes/screenshot/open |
+| **Claude** | chat-first: Recents sidebar, Projects, Artifacts grid + half-screen artifact panel (Preview/Code) | chats, projects, artifacts, approvals, search (fs/terminal blocked) |
+| **Muse** | creative studio: icon rail, brief → creations, Gallery wall with live thumbnails, Boards, Voice embodiment, Cloud PC placeholder | boards, creations/artifacts, voice (fs/terminal blocked) |
+| **Grok Bot** | agent team: roster with custom agents, Dispatch (multi-select members), per-agent transcript feed (swarm cards), Automations center, Cloud PC placeholder | tasks, agents CRUD, swarm dispatch, automations (fs blocked) |
+
+All four speak to the same provider layer (13 OpenAI-compatible presets + custom)
+with per-product keys/config in their own state.json. Every surface is an
 **original implementation** of a publicly observed design language; no third-party
 code, artwork, fonts, icons, or logos are included.
 
-| Skin | Character (original SVG, state-machine animated) | Default provider mapping |
+| Product | Character (original SVG, state-machine animated) | Suggested provider |
 | --- | --- | --- |
 | **Codex** | orbiting core + ring | any (DeepSeek/Qwen/…) |
 | **Claude** | breathing ray-mark | Anthropic-compatible |
