@@ -3,7 +3,7 @@
   --accent-strong: #ff5f38;
   --green: #00c853;
   --radius: 10px;
-  --font: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --font: "Inter Variable", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
   --mono: "SF Mono", ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
 }
 
@@ -1480,3 +1480,24 @@ pre.codeblock { margin: 0; border: none; border-radius: 0; background: transpare
 /* ---------- automations ---------- */
 .auto-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; }
 .auto-row:hover { background: var(--hover); }
+
+/* ---------- detached window / print / zoom / finder launcher ---------- */
+.detached .nav-rail, .detached .sidebar, .detached .summary-panel { display: none !important; }
+.detached .titlebar .traffic { display: none; }
+.bz { display: flex; align-items: center; gap: 1px; margin-left: 4px; }
+.bz-val { font-size: 10.5px; color: var(--faint); font-family: var(--mono); min-width: 34px; text-align: center; }
+.bz-wrap { flex: 1; overflow: hidden; position: relative; border-radius: 8px; margin-top: 6px; min-height: 0; }
+.fr-reveal { opacity: 0; font-size: 11px; color: var(--faint); padding: 0 4px; }
+.file-row:hover .fr-reveal { opacity: 1; }
+.fr-reveal:hover { color: var(--text); }
+.fc-open { opacity: 0; font-size: 11px; color: var(--faint); padding: 0 4px; }
+.fcard-file:hover .fc-open { opacity: 1; }
+
+@media print {
+  body * { visibility: hidden; }
+  .thread-scroll, .thread-scroll * { visibility: visible; }
+  .thread-scroll { position: absolute; inset: 0; overflow: visible !important; max-height: none !important; }
+  .thread-inner { max-width: 100% !important; }
+  .find-bar, .scroll-bottom, .msg-footer, .thinking-row { display: none !important; }
+  .card, .codeblock-wrap { break-inside: avoid; }
+}

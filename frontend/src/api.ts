@@ -39,6 +39,7 @@ export const api = {
   procLog: (projectId: string, pid: string) => fetch(`/api/projects/${projectId}/processes/${pid}/log`).then(j<{ log: string }>),
   automations: () => fetch("/api/automations").then(j<any[]>),
   patchSchedule: (threadId: string, taskId: string, patch: Record<string, unknown>) => fetch(`/api/threads/${threadId}/schedule/${taskId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) }).then(j<{ ok: boolean }>),
+  openPath: (projectId: string, path: string | "", mode: "open" | "reveal") => fetch(`/api/projects/${projectId}/open`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path, mode }) }).then(j<{ ok: boolean }>),
   outputs: () => fetch("/api/outputs").then(j<{ kind: "file" | "site"; path: string; url?: string; ts: number; thread: string; threadId: string }[]>),
   addSource: (threadId: string, url: string, title?: string) => fetch(`/api/threads/${threadId}/source`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url, title }) }).then(j<{ ok: boolean }>),
   restore: (threadId: string, hash: string) => fetch(`/api/threads/${threadId}/restore`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hash }) }).then(j<{ ok: boolean }>),

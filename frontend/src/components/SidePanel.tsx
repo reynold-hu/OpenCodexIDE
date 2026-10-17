@@ -199,9 +199,12 @@ export function SidePanel({
                   className="file-row"
                   style={{ paddingLeft: 8 + depthOf(f.path) * 12 }}
                   onClick={() => !f.dir && openFile(f.path)}
+                  onDoubleClick={() => !f.dir && api.openPath(project.id, f.path, "open")}
+                  title={!f.dir ? "双击用默认应用打开" : undefined}
                 >
                   {f.dir ? <IconFolder size={13} style={{ color: "var(--faint)" }} /> : <IconFile size={13} style={{ color: "var(--faint)" }} />}
                   <span className="fr-name">{f.name}</span>
+                  {!f.dir && <button className="fr-reveal" onClick={(e) => { e.stopPropagation(); api.openPath(project.id, f.path, "reveal"); }} title="在 Finder 中显示">⌖</button>}
                 </div>
               ))
             )}

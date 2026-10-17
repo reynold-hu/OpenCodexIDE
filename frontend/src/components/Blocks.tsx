@@ -105,11 +105,13 @@ export function FileGroupCard({
   onUndo,
   onViewChanges,
   onOpenCanvas,
+  projectId,
 }: {
   items: FileChangeItem[];
   onUndo?: (paths: string[]) => void;
   onViewChanges?: () => void;
   onOpenCanvas?: (path: string) => void;
+  projectId?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const adds = items.reduce((s, i) => s + i.additions, 0);
@@ -140,6 +142,9 @@ export function FileGroupCard({
             <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: f.reverted ? "line-through" : undefined }}>{f.path}</span>
             <span className="stat-add">+{f.additions}</span>
             <span className="stat-del">-{f.deletions}</span>
+            {projectId && !f.reverted && (
+              <button className="fc-open" title="用默认应用打开" onClick={(e) => { e.stopPropagation(); fetch(`/api/projects/${projectId}/open`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path: f.path, mode: "open" }) }); }}>↗</button>
+            )}
           </div>
         ))}
         {items.length > 3 && (
@@ -337,9 +342,9 @@ export function BlockView({
     case "command":
       return <CommandCard block={block} onApprove={onApprove} diffPreview={diffPreview} />;
     case "file_change":
-      return <FileGroupCard items={[block]} onUndo={onUndoFiles} onViewChanges={onViewChanges} onOpenCanvas={onOpenCanvas} />;
+      return <FileGroupCard items={[block]} onUndo={onUndoFiles} onViewChanges={onViewChanges} onOpenCanvas={onOpenCanvas} projectId={projectId} />;
     case "file_group":
-      return <FileGroupCard items={block.items} onUndo={onUndoFiles} onViewChanges={onViewChanges} onOpenCanvas={onOpenCanvas} />;
+      return <FileGroupCard items={block.items} onUndo={onUndoFiles} onViewChanges={onViewChanges} onOpenCanvas={onOpenCanvas} projectId={projectId} />;
     case "preview":
       return <PreviewCard url={block.url} path={block.path} onOpenPreview={onOpenPreview || (() => {})} onOpenWindow={onOpenWindow || (() => window.open(block.url))} />;
     case "process":

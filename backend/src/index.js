@@ -484,6 +484,20 @@ app.get("/api/projects/:id/diff", async (req, res) => {
     res.json({ diff: "", error: e.message });
   }
 });
+app.post("/api/projects/:id/open", async (req, res) => {
+  const dir = projectDir(req, res);
+  if (!dir) return;
+  const rel = String(req.body?.path || "").replace(/^\/+/, "");
+  const mode = req.body?.mode === "reveal" ? "reveal" : "open";
+  const { execFile } = await import("node:child_process");
+  if (!rel) {
+    return execFile("open", [dir], (e) => (e ? res.status(500).json({ error: e.message }) : res.json({ ok: true })));
+  }
+  const full = path.normalize(path.join(dir, rel));
+  if (!full.startsWith(dir) || !fs.existsSync(full)) return res.status(404).json({ error: "not found" });
+  const args = mode === "reveal" ? ["-R", full] : [full];
+  execFile("open", args, (e) => (e ? res.status(500).json({ error: e.message }) : res.json({ ok: true })));
+});
 app.post("/api/projects/:id/upload", (req, res) => {
   const dir = projectDir(req, res);
   if (!dir) return;

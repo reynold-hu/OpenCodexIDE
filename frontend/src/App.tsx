@@ -173,6 +173,8 @@ export default function App() {
     document.documentElement.setAttribute("data-app", settings.appMode || "codex");
   }, [settings]);
 
+  const [detached] = useState(() => new URLSearchParams(location.search).get("detached") === "1");
+
   useEffect(() => {
     Promise.all([api.settings(), api.models(), api.projects(), api.providers()]).then(([s, m, p, pr]) => {
       setSettings(s);
@@ -180,7 +182,10 @@ export default function App() {
       setProjects(p);
       setProviders(pr);
       if (p[0]) setProject(p[0]);
+      const tid = new URLSearchParams(location.search).get("thread");
+      if (tid) api.thread(tid).then((full) => openThread(full as any)).catch(() => {});
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -664,7 +669,7 @@ export default function App() {
   const childChats = thread ? threads.filter((t) => t.sideOf === thread.id) : [];
 
   return (
-    <div className="shell">
+    <div className={`shell ${detached ? "detached" : ""}`}>
       <div className="titlebar">
         <div className="traffic">
           <span className="r" />
@@ -752,7 +757,8 @@ export default function App() {
                   navigator.clipboard.writeText(blocks.filter((b) => b.kind === "prompt" || b.kind === "agent_message").map((b: any) => (b.kind === "prompt" ? `> ${b.text}` : b.text)).join("\n\n"));
                   showToast("对话已复制");
                 }}
-                onOpenWindow={() => window.open(`${location.origin}${location.pathname}?thread=${thread.id}`, "_blank")}
+                onOpenWindow={() => window.open(`${location.origin}${location.pathname}?thread=${thread.id}&detached=1`, "_blank")}
+                onPrint={() => { window.print(); }}
                 onExport={() => {
                   const md = blocks.map((b: any) => b.kind === "prompt" ? `## ${b.text}\n` : b.kind === "agent_message" ? `${b.text}\n\n---\n` : "").filter(Boolean).join("\n");
                   const blob = new Blob([`# ${thread.title || "chat"}\n\n${md}`], { type: "text/markdown" });
@@ -877,6 +883,8 @@ export default function App() {
                   autoFocus
                   projectId={project?.id}
                   onStop={stopTurn}
+                  reasoning={settings.reasoning}
+                  onReasoning={(r) => saveSettings({ reasoning: r } as any)}
                 />
                 <div className="composer-hint">OpenEveryAgent can make mistakes. Check important info.</div>
               </div>
@@ -971,6 +979,8 @@ export default function App() {
                     onApprovalMode={setThreadMode}
                     projectId={project?.id}
                     onStop={stopTurn}
+                    reasoning={settings.reasoning}
+                    onReasoning={(r) => saveSettings({ reasoning: r } as any)}
                   />
                   <div className="composer-hint">
                     <span>OpenEveryAgent can make mistakes. Check important info. · ⌘K commands · ⌘S side chat</span>

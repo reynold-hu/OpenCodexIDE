@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { IconPencil, IconPin, IconPlus, IconClock, IconCalendar, IconShare, IconCopy, IconExternal, IconArchive, IconChevron, IconBranch, IconRefresh, IconArrowDown } from "../icons";
+import { IconPencil, IconPin, IconPlus, IconClock, IconCalendar, IconShare, IconCopy, IconExternal, IconArchive, IconChevron, IconBranch, IconRefresh, IconArrowDown, IconFile } from "../icons";
 
 export function ThreadMenu({
   thread,
@@ -14,6 +14,7 @@ export function ThreadMenu({
   onShare,
   onCopyTranscript,
   onExport,
+  onPrint,
   onOpenWindow,
   onArchive,
 }: {
@@ -29,6 +30,7 @@ export function ThreadMenu({
   onShare: () => void;
   onCopyTranscript: () => void;
   onExport: () => void;
+  onPrint: () => void;
   onOpenWindow: () => void;
   onArchive: () => void;
 }) {
@@ -94,6 +96,7 @@ export function ThreadMenu({
           <Item icon={<IconShare size={14} />} label="分享" onClick={onShare} />
           <Item icon={<IconCopy size={14} />} label="复制对话" onClick={onCopyTranscript} />
           <Item icon={<IconArrowDown size={14} />} label="导出 Markdown" onClick={onExport} />
+          <Item icon={<IconFile size={14} />} label="导出 PDF(打印)" onClick={onPrint} />
           <div className="menu-sep" />
           <Item icon={<IconExternal size={14} />} label="在新窗口中打开" onClick={onOpenWindow} />
           <div className="menu-sep" />

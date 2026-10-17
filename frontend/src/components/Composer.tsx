@@ -48,6 +48,8 @@ export function Composer({
   autoFocus,
   projectId,
   onStop,
+  reasoning,
+  onReasoning,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -62,9 +64,12 @@ export function Composer({
   autoFocus?: boolean;
   projectId?: string;
   onStop?: () => void;
+  reasoning?: string;
+  onReasoning?: (r: string) => void;
 }) {
   const [modelOpen, setModelOpen] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
+  const [reasonOpen, setReasonOpen] = useState(false);
   const [files, setFiles] = useState<{ name: string; path: string; dir: boolean }[]>([]);
   const [mentionQ, setMentionQ] = useState<string | null>(null);
   const [slashOpen, setSlashOpen] = useState(false);
@@ -232,6 +237,20 @@ export function Composer({
           </PillMenu>
         </div>
 
+        {onReasoning && (
+          <div style={{ position: "relative" }}>
+            <button className="pill" onClick={() => setReasonOpen(!reasonOpen)}>◈ {reasoning || "auto"}<IconChevron size={11} dir={reasonOpen ? "up" : "down"} /></button>
+            <PillMenu open={reasonOpen} onClose={() => setReasonOpen(false)}>
+              <div className="menu-label">Reasoning effort</div>
+              {["default", "low", "medium", "high"].map((r) => (
+                <button key={r} className="menu-item" onClick={() => { onReasoning(r); setReasonOpen(false); }}>
+                  <span className="mi-check">{(reasoning || "default") === r ? <IconCheck size={14} /> : null}</span>
+                  <span className="mi-body"><div className="mi-title">{r}</div><div className="mi-desc">{r === "default" ? "provider 默认强度" : r === "high" ? "更深思考,更慢" : "更快响应"}</div></span>
+                </button>
+              ))}
+            </PillMenu>
+          </div>
+        )}
         <div style={{ position: "relative" }}>
           <button className={`pill ${modeOpen ? "active" : ""}`} onClick={() => setModeOpen(!modeOpen)}>
             {modeInfo.id !== "auto" ? <IconShield size={12} className="mode-warn" /> : <IconShield size={12} />}

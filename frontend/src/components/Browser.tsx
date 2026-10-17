@@ -31,6 +31,7 @@ export function Browser({
   const [tabs, setTabs] = useState<Tab[]>([newTab()]);
   const [activeId, setActiveId] = useState(tabs[0].id);
   const [omni, setOmni] = useState("");
+  const [zoom, setZoom] = useState(1);
   const [recent, setRecent] = useState<{ kind: "file" | "site"; path: string; url?: string; ts: number; thread: string }[]>([]);
 
   const active = tabs.find((t) => t.id === activeId) || tabs[0];
@@ -105,6 +106,12 @@ export function Browser({
         <button className="icon-btn" onClick={() => go(-1)} disabled={active.idx <= 0} style={{ opacity: active.idx <= 0 ? 0.35 : 1 }}><IconArrowLeft size={14} /></button>
         <button className="icon-btn" onClick={() => go(1)} style={{ opacity: active.idx >= active.hist.length - 1 ? 0.35 : 1 }}><IconChevron size={14} dir="right" /></button>
         <button className="icon-btn" onClick={reload}><IconRefresh size={13} /></button>
+        <span className="bz">
+          <button className="icon-btn" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))}>−</button>
+          <span className="bz-val">{Math.round(zoom * 100)}%</span>
+          <button className="icon-btn" onClick={() => setZoom((z) => Math.min(2, +(z + 0.1).toFixed(2)))}>＋</button>
+          <button className="icon-btn" onClick={() => setZoom(1)} style={{ fontSize: 10 }}>1:1</button>
+        </span>
         <input
           className="omnibox"
           placeholder="搜索或输入网址"
@@ -116,7 +123,9 @@ export function Browser({
       </div>
 
       {active.url ? (
-        <iframe key={`${active.id}-${active.nonce}`} className="browser-frame" src={active.url} title="preview" sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-modals" />
+        <div className="bz-wrap">
+          <iframe key={`${active.id}-${active.nonce}`} className="browser-frame" style={{ width: `${100 / zoom}%`, height: `${100 / zoom}%`, transform: `scale(${zoom})`, transformOrigin: "0 0" }} src={active.url} title="preview" sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-modals" />
+        </div>
       ) : (
         <div className="browser-newtab">
           <div className="nt-section">工具</div>
