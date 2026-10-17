@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="OpenCodex IDE" width="220"/>
+  <img src="assets/logo.png" alt="Open Every Agent IDE" width="220"/>
 </p>
 
 <p align="center">
@@ -12,11 +12,13 @@
   <img src="https://img.shields.io/badge/status-v0.1-yellow" alt="status v0.1"/>
 </p>
 
-# OpenCodex IDE
+# Open Every Agent IDE
 
-**A self-hosted, front-end/back-end separated web IDE that combines the strengths
-of Codex-style agentic desktop UX with opencode-style bring-your-own-provider
-flexibility.**
+**Open Every Agent IDE — a self-hosted, front-end/back-end separated web IDE that
+unifies the best of today's agent surfaces: Codex-style agentic UX, Claude-style
+warmth, Muse-style voice embodiment, Grok-Bot-style scheduled automation, and
+opencode-style bring-your-own-provider flexibility. Four skins, one agent engine,
+any model.**
 
 Type a task in the browser; an agent plans it, runs real shell commands in a
 real workspace, edits real files, shows you diffs — with explicit approval gates
@@ -45,7 +47,7 @@ machine, your workspace, your API keys, your model.
 > checklists, `$ command` cards, diff cards, approval pills, a Review panel —
 > while the *engine layer* follows what opencode proved: any OpenAI-compatible
 > provider, key stays on your machine, the agent is just a tool-calling loop.
-> OpenCodex IDE is an independent implementation built from scratch; it takes
+> Open Every Agent IDE is an independent implementation built from scratch; it takes
 > inspiration from publicly observed UX patterns of both ecosystems, and from
 > neither copies code, assets, or branding.
 
@@ -78,7 +80,7 @@ auto-switches providers, so each product surface can speak to its own vendor
 
 ## Why not just use X?
 
-| | Codex-style desktop agents | opencode | **OpenCodex IDE** |
+| | Codex-style desktop agents | opencode | **OpenEveryAgent IDE** |
 |---|---|---|---|
 | interface | native app, one vendor's account | terminal TUI | **web UI in any browser** |
 | bring your own model | limited / vendor-bound | ✅ any provider | ✅ any OpenAI-compatible endpoint |
@@ -97,8 +99,8 @@ Kimi, GLM, OpenRouter, Groq or local Ollama for real work.
 ## Quick start
 
 ```bash
-git clone https://github.com/reynold-hu/OpenCodexIDE.git
-cd OpenCodexIDE
+git clone https://github.com/reynold-hu/OpenEveryAgentIDE.git
+cd OpenEveryAgentIDE
 npm run setup     # installs backend + frontend deps
 npm run dev       # backend :8787 + frontend :5175
 open http://localhost:5175
@@ -154,7 +156,7 @@ with multi-turn context rebuilt from the stored transcript.
 ## Architecture
 
 ```
-OpenCodexIDE/
+OpenEveryAgentIDE/
 ├── backend/    Node + Express REST API (port 8787)
 │   └── src/
 │       ├── index.js      routes: settings / providers / models / projects / threads / approvals / fs / git / terminal / SSE
@@ -191,7 +193,7 @@ Licensed under **AGPL-3.0-only** (see [LICENSE](LICENSE)):
 - ✅ Use, modify, and run it however you like — forking and building on it is encouraged.
 - 🔗 Distribute or host a modified version (network service included) → you must publish the modified source under the same license and keep the copyright notice plus a link to this repo.
 - 🚫 Authorship must stay visible: no stripping notices, no relabeling a derivative as your own closed product.
-- ™ "OpenCodex" is this project's name — forks should rename to avoid misrepresenting origin.
+- ™ "OpenEveryAgent" is this project's name — forks should rename to avoid misrepresenting origin.
 
 *Codex is a trademark of OpenAI. opencode is a trademark of its respective owner.
 Claude is a trademark of Anthropic. Grok is a trademark of xAI. Muse is a

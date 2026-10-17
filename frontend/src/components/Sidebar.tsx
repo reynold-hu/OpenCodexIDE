@@ -74,7 +74,7 @@ export function Sidebar({
     <aside className="sidebar">
       <div className="sb-head">
         <div className="sb-brand">
-          <span className="name">OpenCodex</span>
+          <span className="name">OpenEveryAgent</span>
           <button className="icon-btn" title="New chat" onClick={onNewChat}>
             <IconPlus size={15} />
           </button>

@@ -1,5 +1,5 @@
 {
-  "name": "open-codex-ide",
+  "name": "open-every-agent-ide",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -13,7 +13,7 @@
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "https://github.com/reynold-hu/OpenCodexIDE.git"
+    "url": "https://github.com/reynold-hu/OpenEveryAgentIDE.git"
   },
   "author": "reynold-hu"
 }

@@ -138,7 +138,7 @@ export function SidePanel({
                     onClick={async () => {
                       setBusy(true);
                       try {
-                        await api.commit(project.id, commitMsg || "OpenCodex changes", threadId);
+                        await api.commit(project.id, commitMsg || "OpenEveryAgent changes", threadId);
                         setCommitMsg("");
                         await refreshGit();
                       } finally {

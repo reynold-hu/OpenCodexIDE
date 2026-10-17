@@ -143,7 +143,7 @@ export function SettingsModal({
           <div className="set-row">
             <div className="sr-label">
               <div className="sr-title">Appearance</div>
-              <div className="sr-desc">Choose how OpenCodex looks</div>
+              <div className="sr-desc">Choose how OpenEveryAgent looks</div>
             </div>
             <div className="segmented">
               {(["dark", "light", "system"] as const).map((t) => (

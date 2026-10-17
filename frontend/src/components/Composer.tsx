@@ -161,7 +161,7 @@ export function Composer({
         ref={ta}
         rows={1}
         value={value}
-        placeholder={placeholder || "Ask OpenCodex anything…"}
+        placeholder={placeholder || "Ask the agent anything…"}
         onChange={(e) => onChange(e.target.value)}
         onPaste={handlePaste}
         onKeyDown={(e) => {

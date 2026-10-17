@@ -538,7 +538,7 @@ app.post("/api/projects/:id/commit", async (req, res) => {
   const dir = projectDir(req, res);
   if (!dir) return;
   try {
-    await gitCommitAll(dir, String(req.body?.message || "OpenCodex changes"));
+    await gitCommitAll(dir, String(req.body?.message || "OpenEveryAgent changes"));
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -685,7 +685,7 @@ setInterval(() => {
 }, 20000);
 
 // ---------- health ----------
-app.get("/api/health", (req, res) => res.json({ ok: true, name: "OpenCodex IDE", version: "0.1.0" }));
+app.get("/api/health", (req, res) => res.json({ ok: true, name: "Open Every Agent IDE", version: "0.1.0" }));
 
 await bootstrap();
-app.listen(PORT, () => console.log(`OpenCodex IDE backend on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Open Every Agent IDE backend on http://localhost:${PORT}`));

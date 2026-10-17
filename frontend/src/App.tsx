@@ -14,7 +14,7 @@ import { SummaryPanel } from "./components/SummaryPanel";
 import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft, IconBranch, IconLink, IconChevron } from "./icons";
 
 export const MODE_STRINGS: Record<string, { title: string; ask: string; chips: string[] }> = {
-  codex: { title: "Where should OpenCodex work?", ask: "Ask OpenCodex anything…", chips: ["Create a calculator in JavaScript", "Build a todo list app in Python", "做一个个人资产看板网页", "List the workspace files", "Write a small HTTP server in Node", "What is the git status?"] },
+  codex: { title: "Where should we work?", ask: "Ask the agent anything…", chips: ["Create a calculator in JavaScript", "Build a todo list app in Python", "做一个个人资产看板网页", "List the workspace files", "Write a small HTTP server in Node", "What is the git status?"] },
   claude: { title: "How can I help you today?", ask: "Message Claude…", chips: ["帮我起草一封邮件", "解释这段代码的思路", "写一份项目周报", "头脑风暴产品名称", "润色这篇文章", "总结这份文档"] },
   muse: { title: "What will you make?", ask: "Start creating…", chips: ["生成一个落地页视觉稿", "写一段产品发布文案", "配色方案探索", "起 10 个品牌名", "设计一个 logo 概念", "分镜脚本草稿"] },
   grok: { title: "What should we get done?", ask: "Task Grok Bot…", chips: ["调研竞品并输出对比表", "自动化这批文件的整理", "跑一个定时监控任务", "把这份数据做成报表", "起草并检查 SQL", "总结今天的邮件要点"] },
@@ -338,13 +338,13 @@ export default function App() {
         }
         if (document.hidden) {
           const orig = document.title;
-          document.title = "✅ 任务完成 · OpenCodex";
-          const iv = setInterval(() => { document.title = document.title.startsWith("✅") ? orig : "✅ 任务完成 · OpenCodex"; }, 900);
+          document.title = "✅ 任务完成 · OpenEveryAgent";
+          const iv = setInterval(() => { document.title = document.title.startsWith("✅") ? orig : "✅ 任务完成 · OpenEveryAgent"; }, 900);
           const stopFlash = () => { clearInterval(iv); document.title = orig; window.removeEventListener("focus", stopFlash); };
           window.addEventListener("focus", stopFlash);
         }
         if (Notification?.permission === "granted" && document.hidden) {
-          try { new Notification("OpenCodex", { body: "任务完成" }); } catch {}
+          try { new Notification("OpenEveryAgent", { body: "任务完成" }); } catch {}
         }
         setThreads((ts) => ts.map((t) => (t.id === thread?.id ? { ...t, status: "idle", updatedAt: Date.now() } : t)));
         break;
@@ -675,7 +675,7 @@ export default function App() {
           <IconPanel size={14} />
         </button>
         <div className="app-title">
-          {thread?.title || (railView !== "chat" ? railView : "OpenCodex IDE")}
+          {thread?.title || (railView !== "chat" ? railView : "Open Every Agent IDE")}
           {running ? " — running…" : ""}
         </div>
         <div className="app-switcher">
@@ -878,7 +878,7 @@ export default function App() {
                   projectId={project?.id}
                   onStop={stopTurn}
                 />
-                <div className="composer-hint">OpenCodex can make mistakes. Check important info.</div>
+                <div className="composer-hint">OpenEveryAgent can make mistakes. Check important info.</div>
               </div>
               <div className="chips">
                 {(MODE_STRINGS[settings.appMode || "codex"] || MODE_STRINGS.codex).chips.map((c) => (
@@ -973,7 +973,7 @@ export default function App() {
                     onStop={stopTurn}
                   />
                   <div className="composer-hint">
-                    <span>OpenCodex can make mistakes. Check important info. · ⌘K commands · ⌘S side chat</span>
+                    <span>OpenEveryAgent can make mistakes. Check important info. · ⌘K commands · ⌘S side chat</span>
                     {approxTokens > 0 && <span className="usage-chip" title="上下文估算 token(/compact 可压缩)">≈{(approxTokens / 1000).toFixed(1)}k tok</span>}
                   </div>
                 </div>
@@ -1019,7 +1019,7 @@ export default function App() {
           onChange={saveSettings}
           onClose={() => setSettingsOpen(false)}
           onReset={async () => {
-            if (!confirm("Reset all OpenCodex data?")) return;
+            if (!confirm("Reset all OpenEveryAgent data?")) return;
             await fetch("/api/reset", { method: "POST" });
             location.reload();
           }}

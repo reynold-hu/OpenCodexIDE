@@ -22,10 +22,10 @@ export async function ensureWorkspace(project) {
     try {
       await execFileAsync("git", ["init", "-q"], { cwd: dir });
       await execFileAsync("git", ["config", "user.email", "open-codex-ide@local"], { cwd: dir });
-      await execFileAsync("git", ["config", "user.name", project.name || "OpenCodex"], { cwd: dir });
+      await execFileAsync("git", ["config", "user.name", project.name || "OpenEveryAgent"], { cwd: dir });
       const readme = path.join(dir, "README.md");
       if (!fs.existsSync(readme)) {
-        fs.writeFileSync(readme, `# ${project.name}\n\nWorkspace created by OpenCodex IDE.\n`);
+        fs.writeFileSync(readme, `# ${project.name}\n\nWorkspace created by OpenEveryAgent IDE.\n`);
         await execFileAsync("git", ["add", "-A"], { cwd: dir });
         await execFileAsync("git", ["commit", "-q", "-m", "Initial commit"], { cwd: dir });
       }
