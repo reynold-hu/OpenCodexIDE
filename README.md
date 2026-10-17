@@ -49,6 +49,33 @@ machine, your workspace, your API keys, your model.
 > inspiration from publicly observed UX patterns of both ecosystems, and from
 > neither copies code, assets, or branding.
 
+## Four switchable app skins
+
+One backend, four frontends — switch instantly from the title bar. Each skin is an
+**original implementation** of a publicly observed design language; no third-party
+code, artwork, fonts, icons, or logos are included.
+
+| Skin | Character (original SVG, state-machine animated) | Default provider mapping |
+| --- | --- | --- |
+| **Codex** | orbiting core + ring | any (DeepSeek/Qwen/…) |
+| **Claude** | breathing ray-mark | Anthropic-compatible |
+| **Muse** | egg that wobbles, cracks, hatches a creature | Meta Llama-compatible |
+| **Grok** | blinking robot with antenna; bobs while working, smiles when done | xAI-compatible |
+
+Mechanism notes from studying the real apps: Muse's animated character is a
+**Rive state machine** (idle → react → hatch) inside a 44 MB single-file web app;
+Grok Bot is a **thin client for a cloud-rendered desktop agent**. We reproduce the
+*interaction idea* — state-driven vector characters and a cloud-PC concept — with
+zero-dependency SVG/CSS and an honest **Cloud PC placeholder** panel (grok/muse
+skins): it simulates provisioning → boot → ready while the agent actually runs
+against your local workspace.
+
+Every skin attaches **any** provider (13 presets incl. Anthropic, Meta, xAI,
+DeepSeek, Qwen, Kimi, GLM, OpenRouter, Groq, Ollama, custom). Settings →
+"SKIN → PROVIDER 映射" pins a default provider per skin — switching skins
+auto-switches providers, so each product surface can speak to its own vendor
+*and* to the shared external pool.
+
 ## Why not just use X?
 
 | | Codex-style desktop agents | opencode | **OpenCodex IDE** |
@@ -166,9 +193,12 @@ Licensed under **AGPL-3.0-only** (see [LICENSE](LICENSE)):
 - 🚫 Authorship must stay visible: no stripping notices, no relabeling a derivative as your own closed product.
 - ™ "OpenCodex" is this project's name — forks should rename to avoid misrepresenting origin.
 
-*Codex is a trademark of OpenAI. opencode is a trademark of its respective
-owner. This project is not affiliated with, endorsed by, or a continuation of
-either; it is an independent from-scratch implementation.*
+*Codex is a trademark of OpenAI. opencode is a trademark of its respective owner.
+Claude is a trademark of Anthropic. Grok is a trademark of xAI. Muse is a
+trademark of Meta. Skin names here describe *look-and-feel targets implemented
+entirely in original code* — no assets, fonts, characters, or code were taken
+from any of them. This project is not affiliated with, endorsed by, or a
+continuation of any of these companies.*
 
 ## API sketch
 

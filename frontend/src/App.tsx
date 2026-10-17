@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { api } from "./api";
 import type { ApprovalMode, Block, FileChangeItem, ModelInfo, Project, Settings, ThreadMeta, ProviderInfo } from "./types";
 import { Sidebar } from "./components/Sidebar";
+import { Mascot } from "./components/Mascot";
 import { Composer } from "./components/Composer";
 import { BlockView } from "./components/Blocks";
 import { SidePanel } from "./components/SidePanel";
@@ -16,6 +17,7 @@ export const MODE_STRINGS: Record<string, { title: string; ask: string; chips: s
   codex: { title: "Where should OpenCodex work?", ask: "Ask OpenCodex anything…", chips: ["Create a calculator in JavaScript", "Build a todo list app in Python", "做一个个人资产看板网页", "List the workspace files", "Write a small HTTP server in Node", "What is the git status?"] },
   claude: { title: "How can I help you today?", ask: "Message Claude…", chips: ["帮我起草一封邮件", "解释这段代码的思路", "写一份项目周报", "头脑风暴产品名称", "润色这篇文章", "总结这份文档"] },
   muse: { title: "What will you make?", ask: "Start creating…", chips: ["生成一个落地页视觉稿", "写一段产品发布文案", "配色方案探索", "起 10 个品牌名", "设计一个 logo 概念", "分镜脚本草稿"] },
+  grok: { title: "What should we get done?", ask: "Task Grok Bot…", chips: ["调研竞品并输出对比表", "自动化这批文件的整理", "跑一个定时监控任务", "把这份数据做成报表", "起草并检查 SQL", "总结今天的邮件要点"] },
 };
 
 const CHIPS = [
@@ -66,6 +68,9 @@ function blocksFromEvents(events: any[]): Block[] {
         break;
       case "annotation":
         blocks.push({ kind: "annotation", quote: ev.quote, note: ev.note });
+        break;
+      case "cloud_pc":
+        blocks.push({ kind: "cloud_pc", state: ev.state });
         break;
       case "agent_message":
         index.set(ev.id, blocks.length);
@@ -215,6 +220,10 @@ export default function App() {
       case "annotation":
         setBlocks((b) => [...b, { kind: "annotation", quote: ev.quote, note: ev.note }]);
         break;
+      case "cloud_pc":
+        if (ev.state === "provisioning") setBlocks((b) => [...b, { kind: "cloud_pc", state: ev.state }]);
+        else setBlocks((b) => b.map((x) => (x.kind === "cloud_pc" && x.state === "provisioning" ? { ...x, state: ev.state } : x)));
+        break;
       case "notes_consumed":
         showToast("批注已随本轮发送");
         break;
@@ -329,7 +338,7 @@ export default function App() {
     setRunning(full.status === "running");
     const es = new EventSource(api.streamUrl(t.id));
     esRef.current = es;
-    for (const type of ["turn_started", "plan", "plan_update", "command", "command_update", "command_result", "command_output", "turn_cancelled", "queue_update", "steer", "restored", "annotation", "worktree", "worktree_detached", "notes_consumed", "file_change", "files_reverted", "preview_ready", "process", "source", "subagent", "subagent_update", "agent_message", "agent_message_delta", "agent_message_done", "approval_request", "turn_complete", "turn_error"]) {
+    for (const type of ["turn_started", "plan", "plan_update", "command", "command_update", "command_result", "command_output", "turn_cancelled", "queue_update", "steer", "restored", "annotation", "worktree", "worktree_detached", "notes_consumed", "cloud_pc", "file_change", "files_reverted", "preview_ready", "process", "source", "subagent", "subagent_update", "agent_message", "agent_message_delta", "agent_message_done", "approval_request", "turn_complete", "turn_error"]) {
       es.addEventListener(type, (e: MessageEvent) => {
         try {
           handleEvent(JSON.parse(e.data));
@@ -639,8 +648,11 @@ export default function App() {
           {running ? " — running…" : ""}
         </div>
         <div className="app-switcher">
-          {([["codex", "Codex"], ["claude", "Claude"], ["muse", "Muse"]] as const).map(([id, label]) => (
-            <button key={id} className={`as-pill ${(settings.appMode || "codex") === id ? "on" : ""}`} onClick={() => saveSettings({ appMode: id as any })}>
+          {([["codex", "Codex"], ["claude", "Claude"], ["muse", "Muse"], ["grok", "Grok"]] as const).map(([id, label]) => (
+            <button key={id} className={`as-pill ${(settings.appMode || "codex") === id ? "on" : ""}`} onClick={async () => {
+              const mapped = (settings.modeProviders as any)?.[id];
+              await saveSettings({ appMode: id as any, ...(mapped ? { provider: mapped } : {}) });
+            }}>
               {label}
             </button>
           ))}
@@ -763,6 +775,11 @@ export default function App() {
             <span className="mt-badge">{models.find((m) => m.id === modelForThread)?.name || modelForThread}</span>
             {modeForThread !== "auto" && <span className="mt-badge" style={{ color: "var(--accent-strong)" }}><IconAlert size={11} /> {modeForThread}</span>}
             {(thread?.scheduled?.length ?? 0) > 0 && <span className="mt-badge mt-badge-icon"><IconClock size={11} /> {thread!.scheduled!.length}</span>}
+            {(settings.appMode === "grok" || settings.appMode === "muse") && (
+              <button className="mt-badge cloud-chip" onClick={() => { setPanelOpen(true); setTabRequest((r) => ({ tab: "cloud", nonce: r.nonce + 1 })); }}>
+                ☁ 云端 PC
+              </button>
+            )}
           </div>
 
           {childChats.length > 0 && (
@@ -790,6 +807,7 @@ export default function App() {
             <RailPage view={railView} threads={allThreads} onOpenThread={openThread} onCreateProject={createProject} projects={projects} onProject={(p) => { setProject(p); setRailView("chat"); }} />
           ) : !thread && blocks.length === 0 ? (
             <div className="landing">
+              <Mascot mode={settings.appMode || "codex"} state={running ? "thinking" : "idle"} size={92} />
               <h1>{(MODE_STRINGS[settings.appMode || "codex"] || MODE_STRINGS.codex).title}</h1>
               <div style={{ width: "100%", maxWidth: 680 }}>
                 <Composer
@@ -843,7 +861,7 @@ export default function App() {
                   ))}
                   {running && blocks[blocks.length - 1]?.kind !== "agent_message" && (
                     <div className="thinking-row">
-                      <span className="thinking-dots"><i /><i /><i /></span>
+                      <Mascot mode={settings.appMode || "codex"} state="working" size={22} />
                       Thinking…
                     </div>
                   )}

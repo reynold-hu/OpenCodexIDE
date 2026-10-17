@@ -124,6 +124,21 @@ export function SettingsModal({
             </>
           )}
 
+          <div className="menu-label" style={{ padding: "14px 0 4px" }}>SKIN → PROVIDER 映射</div>
+          {([["codex", "Codex"], ["claude", "Claude"], ["muse", "Muse"], ["grok", "Grok"]] as const).map(([id, label]) => (
+            <div className="set-row" key={id}>
+              <div className="sr-label"><div className="sr-title">{label} 模式默认 provider</div><div className="sr-desc">切换到该皮肤时自动启用</div></div>
+              <select
+                className="select-like"
+                value={(settings.modeProviders || {})[id] || ""}
+                onChange={(e) => onChange({ modeProviders: { ...(settings.modeProviders || {}), [id]: e.target.value } } as Partial<Settings>)}
+              >
+                <option value="">不改变</option>
+                {providers.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
+            </div>
+          ))}
+
           <div className="menu-label" style={{ padding: "14px 0 4px" }}>GENERAL</div>
           <div className="set-row">
             <div className="sr-label">

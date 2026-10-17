@@ -758,6 +758,11 @@ export async function runTurn(state, thread, prompt) {
   }
 
   activeTurns.set(thread.id, { aborted: false, child: null, llmAbort: null });
+  const skin = state.settings.appMode;
+  if (skin === "grok" || skin === "muse") {
+    bus.broadcast(thread.id, { type: "cloud_pc", state: "provisioning", ts: Date.now() });
+    setTimeout(() => bus.broadcast(thread.id, { type: "cloud_pc", state: "ready", ts: Date.now() }), 1600);
+  }
   try {
     if (prompt.trim().startsWith("/")) {
       const handled = await runSlashCommand(state, thread, dir, prompt);

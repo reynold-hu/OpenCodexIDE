@@ -3,6 +3,8 @@ import type { Block, FileChangeItem } from "../types";
 import { Markdown } from "../Markdown";
 import { IconCheck, IconChevron, IconShield, IconX, IconFile, IconGlobe, IconUndo, IconCopy, IconThumbUp, IconThumbDown, IconSpeaker, IconExternal, IconCalendar, IconPencil, IconProcess, IconLink } from "../icons";
 
+import { CloudPcCard } from "./CloudPanel";
+
 export function DiffView({ patch }: { patch: string }) {
   const lines = patch.split("\n");
   return (
@@ -342,6 +344,8 @@ export function BlockView({
     case "source":
     case "subagent":
       return null;
+    case "cloud_pc":
+      return <CloudPcCard state={block.state} mode={(typeof document !== "undefined" ? document.documentElement.getAttribute("data-app") : "codex") || "codex"} />;
     case "annotation":
       return <AnnotationCard block={block} onJump={blockIndex !== undefined ? () => document.getElementById(`blk-${Math.max(0, blockIndex - 1)}`)?.scrollIntoView({ behavior: "smooth", block: "center" }) : undefined} />;
     case "error":

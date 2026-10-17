@@ -17,11 +17,12 @@ export interface ProviderInfo {
   hasKey: boolean;
 }
 
-export type AppMode = "codex" | "claude" | "muse";
+export type AppMode = "codex" | "claude" | "muse" | "grok";
 
 export interface Settings {
   theme: "dark" | "light" | "system";
   appMode: AppMode;
+  modeProviders?: Record<string, string>;
   provider: string;
   providers: Record<string, ProviderConfig>;
   model: string;
@@ -106,6 +107,7 @@ export type Block =
   | { kind: "source"; url: string; title?: string }
   | { kind: "subagent"; id: string; prompt: string; done: boolean }
   | { kind: "annotation"; quote: string; note: string }
+  | { kind: "cloud_pc"; state: string }
   | { kind: "turn_complete" }
   | { kind: "error"; message: string };
 

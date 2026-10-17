@@ -3,8 +3,9 @@ import { api } from "../api";
 import type { Project } from "../types";
 import { IconX, IconFile, IconFolder, IconChevron } from "../icons";
 import { Browser } from "./Browser";
+import { CloudPanel } from "./CloudPanel";
 
-type Tab = "review" | "files" | "terminal" | "browser" | "canvas";
+type Tab = "review" | "files" | "terminal" | "browser" | "canvas" | "cloud";
 
 export function SidePanel({
   project,
@@ -105,9 +106,9 @@ export function SidePanel({
   return (
     <aside className="side-panel">
       <div className="sp-tabs">
-        {(["review", "files", "terminal", "browser", "canvas"] as Tab[]).map((t) => (
+        {(["review", "files", "terminal", "browser", "canvas", "cloud"] as Tab[]).map((t) => (
           <button key={t} className={`sp-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-            {t === "review" ? "Review" : t === "files" ? "Files" : t === "terminal" ? "Terminal" : t === "browser" ? "浏览器" : "画布"}
+            {t === "review" ? "Review" : t === "files" ? "Files" : t === "terminal" ? "Terminal" : t === "browser" ? "浏览器" : t === "cloud" ? "云端 PC" : "画布"}
           </button>
         ))}
         <span className="grow" />
@@ -240,6 +241,8 @@ export function SidePanel({
             />
           </div>
         )}
+
+        {tab === "cloud" && <CloudPanel onOpenTerminal={() => setTab("terminal")} />}
 
         {tab === "canvas" && (
           canvas ? (

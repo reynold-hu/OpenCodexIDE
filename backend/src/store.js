@@ -10,6 +10,7 @@ const DEFAULT_STATE = {
   settings: {
     theme: "dark",
     appMode: "codex",
+    modeProviders: {},
     provider: "simulated",
     providers: {},
     model: "gpt-5.1-codex",

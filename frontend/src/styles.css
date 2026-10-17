@@ -1405,3 +1405,45 @@ pre.codeblock {
 [data-app="muse"] .sb-group { text-transform: uppercase; letter-spacing: 1.2px; }
 [data-app="muse"] .pill { border-radius: 4px; }
 [data-app="muse"] .big-logo, [data-app="muse"] .logo { border-radius: 4px; }
+
+/* ---------- mascots (original SVG characters, state-machine driven like Rive) ---------- */
+.mascot { color: var(--accent); overflow: visible; }
+.mascot.s-thinking, .mascot.s-working { color: var(--accent-strong); }
+
+/* codex orb */
+.m-codex .co-ring { transform-origin: 32px 32px; animation: coSpin 6s linear infinite; }
+.m-codex.s-working .co-ring, .m-codex.s-thinking .co-ring { animation-duration: 1.4s; }
+.m-codex .co-core { animation: coBreathe 3s ease-in-out infinite; transform-origin: 32px 32px; }
+@keyframes coSpin { to { transform: rotate(360deg); } }
+@keyframes coBreathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+
+/* claude rays */
+.m-claude .cr-rays { transform-origin: 32px 32px; animation: crBreathe 3.2s ease-in-out infinite; }
+.m-claude .cr-rays line { opacity: 0.85; }
+.m-claude.s-working .cr-rays, .m-claude.s-thinking .cr-rays { animation: crSpin 2.4s linear infinite; }
+.m-claude.s-ready .cr-core { animation: crPop .4s cubic-bezier(.34,1.56,.64,1); }
+@keyframes crBreathe { 0%,100% { transform: scale(1); } 50% { transform: scale(0.82); } }
+@keyframes crSpin { to { transform: rotate(360deg); } }
+@keyframes crPop { 0% { transform: scale(.5); } 100% { transform: scale(1); } }
+
+/* grok bot: blink + antenna pulse + working bob */
+.m-grok .g-eyes { transform-origin: 32px 29px; animation: gBlink 4.5s infinite; }
+.m-grok .g-tip { animation: gPulse 2s ease-in-out infinite; }
+.m-grok.s-working, .m-grok.s-thinking { animation: gBob 0.9s ease-in-out infinite; }
+.m-grok.s-working .g-mouth, .m-grok.s-thinking .g-mouth { d: path("M26 36 q3 3 6 0 q3 -3 6 0"); }
+.m-grok.s-ready .g-mouth { d: path("M26 36 q6 5 12 0"); }
+@keyframes gBlink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.08); } }
+@keyframes gPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes gBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+
+/* muse hatch: egg wobble -> creature pop */
+.m-muse .mu-egg { transform-origin: 32px 46px; }
+.m-muse.s-thinking .mu-egg, .m-muse.s-working .mu-egg { animation: muWobble 0.5s ease-in-out infinite; }
+.m-muse .mu-crack { stroke-dasharray: 40; stroke-dashoffset: 40; transition: stroke-dashoffset 1.2s ease; }
+.m-muse.s-working .mu-crack, .m-muse.s-thinking .mu-crack { stroke-dashoffset: 0; }
+.m-muse .mu-creature { transform: scale(0); transform-origin: 32px 46px; transition: transform 0.5s cubic-bezier(.34,1.56,.64,1); }
+.m-muse.s-ready .mu-creature { transform: scale(1); }
+.m-muse.s-ready .mu-egg { opacity: 0.25; }
+@keyframes muWobble { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-4deg); } 75% { transform: rotate(4deg); } }
+
+.landing .mascot { filter: drop-shadow(0 8px 24px rgba(0,0,0,0.18)); }

@@ -24,6 +24,24 @@ export const PROVIDER_PRESETS = [
     models: ["qwen3-coder-plus", "qwen3-coder-flash", "qwen-max", "qwen-plus"],
   },
   {
+    id: "anthropic",
+    label: "Anthropic Claude",
+    baseUrl: "https://api.anthropic.com/v1",
+    models: ["claude-sonnet-4.5", "claude-opus-4.1", "claude-haiku-4.5"],
+  },
+  {
+    id: "meta",
+    label: "Meta Llama",
+    baseUrl: "https://api.llama.com/compatible-mode/v1",
+    models: ["llama-4-maverick", "llama-4-scout"],
+  },
+  {
+    id: "xai",
+    label: "xAI Grok",
+    baseUrl: "https://api.x.ai/v1",
+    models: ["grok-4", "grok-4-fast", "grok-3"],
+  },
+  {
     id: "moonshot",
     label: "Moonshot Kimi",
     baseUrl: "https://api.moonshot.cn/v1",
