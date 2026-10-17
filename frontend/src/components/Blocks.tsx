@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { Block, FileChangeItem } from "../types";
 import { Markdown } from "../Markdown";
 import { IconCheck, IconChevron, IconShield, IconX, IconFile, IconGlobe, IconUndo, IconCopy, IconThumbUp, IconThumbDown, IconSpeaker, IconExternal, IconCalendar, IconPencil, IconProcess, IconLink } from "../icons";
@@ -76,12 +76,23 @@ export function CommandCard({ block, onApprove, diffPreview }: { block: Extract<
         <div className="approve-row">
           <button className="btn-allow" onClick={() => onApprove(block.approvalId || block.id, "approve")}>Allow</button>
           <button className="btn-deny" onClick={() => onApprove(block.approvalId || block.id, "deny")}>Deny</button>
+          {block.expiresAt ? <Countdown expiresAt={block.expiresAt} /> : null}
         </div>
       )}
       {block.status === "denied" && <div className="cmd-out">[{block.reason || "denied"}]</div>}
       {open && block.output && <pre className="cmd-out">{block.output}</pre>}
     </div>
   );
+}
+
+function Countdown({ expiresAt }: { expiresAt: number }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => tick((t) => t + 1), 1000);
+    return () => clearInterval(iv);
+  }, []);
+  const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+  return <span className={`appr-cd ${left < 15 ? "warn" : ""}`}>{left}s</span>;
 }
 
 export function FileGroupCard({
@@ -236,9 +247,9 @@ export function ProcessCard({ block, projectId }: { block: Extract<Block, { kind
   );
 }
 
-export function AnnotationCard({ block }: { block: Extract<Block, { kind: "annotation" }> }) {
+export function AnnotationCard({ block, onJump }: { block: Extract<Block, { kind: "annotation" }>; onJump?: () => void }) {
   return (
-    <div className="card annotation-card">
+    <div className={`card annotation-card ${onJump ? "clickable" : ""}`} onClick={onJump}>
       <div className="ann-head"><IconLink size={12} /> 批注 · 待下一轮处理</div>
       {block.quote && <div className="ann-quote">“{block.quote}”</div>}
       {block.note && <div className="ann-note">{block.note}</div>}
@@ -281,6 +292,7 @@ export function BlockView({
   onRestore,
   onApprove,
   diffPreview,
+  blockIndex,
   onUndoFiles,
   onViewChanges,
   onOpenCanvas,
@@ -303,6 +315,7 @@ export function BlockView({
   onRevise?: (ts: number, newPrompt: string) => void;
   onRestore?: (hash: string) => void;
   diffPreview?: string;
+  blockIndex?: number;
 }) {
   switch (block.kind) {
     case "prompt":
@@ -330,7 +343,7 @@ export function BlockView({
     case "subagent":
       return null;
     case "annotation":
-      return <AnnotationCard block={block} />;
+      return <AnnotationCard block={block} onJump={blockIndex !== undefined ? () => document.getElementById(`blk-${Math.max(0, blockIndex - 1)}`)?.scrollIntoView({ behavior: "smooth", block: "center" }) : undefined} />;
     case "error":
       return <div className="agent-msg" style={{ color: "var(--accent-strong)" }}>{block.message}</div>;
     default:

@@ -51,8 +51,8 @@ export class TurnBus {
         this.pendingApprovals.delete(id);
         resolve({ decision: "timeout" });
       }, 120000);
-      this.pendingApprovals.set(id, { threadId, command, resolve: (decision) => { clearTimeout(timer); this.pendingApprovals.delete(id); resolve({ decision }); } });
-      this.broadcast(threadId, { type: "approval_request", id, command, cwd, diffPreview: diffPreview.slice(0, 3000), ts: Date.now() });
+      this.pendingApprovals.set(id, { threadId, command, expiresAt: Date.now() + 120000, resolve: (decision) => { clearTimeout(timer); this.pendingApprovals.delete(id); resolve({ decision }); } });
+      this.broadcast(threadId, { type: "approval_request", id, command, cwd, diffPreview: diffPreview.slice(0, 3000), expiresAt: Date.now() + 120000, ts: Date.now() });
     });
   }
 

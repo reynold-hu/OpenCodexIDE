@@ -12,6 +12,12 @@ import { ThreadMenu } from "./components/ThreadMenu";
 import { SummaryPanel } from "./components/SummaryPanel";
 import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft, IconBranch, IconLink } from "./icons";
 
+export const MODE_STRINGS: Record<string, { title: string; ask: string; chips: string[] }> = {
+  codex: { title: "Where should OpenCodex work?", ask: "Ask OpenCodex anything…", chips: ["Create a calculator in JavaScript", "Build a todo list app in Python", "做一个个人资产看板网页", "List the workspace files", "Write a small HTTP server in Node", "What is the git status?"] },
+  claude: { title: "How can I help you today?", ask: "Message Claude…", chips: ["帮我起草一封邮件", "解释这段代码的思路", "写一份项目周报", "头脑风暴产品名称", "润色这篇文章", "总结这份文档"] },
+  muse: { title: "What will you make?", ask: "Start creating…", chips: ["生成一个落地页视觉稿", "写一段产品发布文案", "配色方案探索", "起 10 个品牌名", "设计一个 logo 概念", "分镜脚本草稿"] },
+};
+
 const CHIPS = [
   "Create a calculator in JavaScript",
   "Build a todo list app in Python",
@@ -146,12 +152,14 @@ export default function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const esRef = useRef<EventSource | null>(null);
   const approvalDiffs = useRef<Record<string, string>>({});
+  const approvalExpiry = useRef<Record<string, number>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!settings) return;
     const want = settings.theme === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : settings.theme;
     document.documentElement.setAttribute("data-theme", want);
+    document.documentElement.setAttribute("data-app", settings.appMode || "codex");
   }, [settings]);
 
   useEffect(() => {
@@ -232,7 +240,8 @@ export default function App() {
         break;
       case "approval_request":
         if (ev.diffPreview) approvalDiffs.current[ev.id] = ev.diffPreview;
-        setBlocks((b) => b.map((x) => (x.kind === "command" && x.status === "awaiting_approval" ? { ...x, approvalId: ev.id } : x)));
+        if (ev.expiresAt) approvalExpiry.current[ev.id] = ev.expiresAt;
+        setBlocks((b) => b.map((x) => (x.kind === "command" && x.status === "awaiting_approval" ? { ...x, approvalId: ev.id, expiresAt: ev.expiresAt } : x)));
         break;
       case "command_update":
         setBlocks((b) => b.map((x) => (x.kind === "command" && x.id === ev.id ? { ...x, status: ev.status, reason: ev.reason } : x)));
@@ -629,6 +638,13 @@ export default function App() {
           {thread?.title || (railView !== "chat" ? railView : "OpenCodex IDE")}
           {running ? " — running…" : ""}
         </div>
+        <div className="app-switcher">
+          {([["codex", "Codex"], ["claude", "Claude"], ["muse", "Muse"]] as const).map(([id, label]) => (
+            <button key={id} className={`as-pill ${(settings.appMode || "codex") === id ? "on" : ""}`} onClick={() => saveSettings({ appMode: id as any })}>
+              {label}
+            </button>
+          ))}
+        </div>
         <button className="icon-btn" title="摘要面板" onClick={() => setSummaryOpen(!summaryOpen)} style={summaryOpen ? { color: "var(--text)", background: "var(--sel)" } : undefined}>
           <IconSummary size={14} />
         </button>
@@ -694,6 +710,15 @@ export default function App() {
                   showToast("对话已复制");
                 }}
                 onOpenWindow={() => window.open(`${location.origin}${location.pathname}?thread=${thread.id}`, "_blank")}
+                onExport={() => {
+                  const md = blocks.map((b: any) => b.kind === "prompt" ? `## ${b.text}\n` : b.kind === "agent_message" ? `${b.text}\n\n---\n` : "").filter(Boolean).join("\n");
+                  const blob = new Blob([`# ${thread.title || "chat"}\n\n${md}`], { type: "text/markdown" });
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `${(thread.title || "chat").replace(/[^\w\u4e00-\u9fff-]/g, "_")}.md`;
+                  a.click();
+                  showToast("已导出 Markdown");
+                }}
                 onArchive={async () => {
                   await patchThread({ archived: !thread.archived });
                   if (!thread.archived) newChat();
@@ -706,12 +731,17 @@ export default function App() {
             <span className="mt-title">{thread?.title || "New chat"}</span>
             {thread?.pinned && <span className="mt-badge mt-badge-icon"><IconPin size={11} /> 置顶</span>}
             {thread?.worktree && (
-              <button className="mt-badge wt-chip" title={`${thread.worktree.path}\n点击退出工作树`} onClick={async () => {
-                await api.detachWorktree(thread.id);
-                setThread({ ...thread, worktree: null });
-              }}>
-                <IconBranch size={11} /> {thread.worktree.branch.replace(/^oc\//, "")} ✕
-              </button>
+              <span className="mt-badge wt-chip" title={thread.worktree.path}>
+                <IconBranch size={11} /> {thread.worktree.branch.replace(/^oc\//, "")}
+                <button className="wt-merge" onClick={async () => {
+                  const r = await api.mergeWorktree(thread.id);
+                  showToast(r.ok ? "工作树变更已合并回主线" : `合并失败: ${r.error}`);
+                }}>合并</button>
+                <button className="wt-detach" onClick={async () => {
+                  await api.detachWorktree(thread.id);
+                  setThread({ ...thread, worktree: null });
+                }}>✕</button>
+              </span>
             )}
             {branches.length > 0 && (
               <select
@@ -760,7 +790,7 @@ export default function App() {
             <RailPage view={railView} threads={allThreads} onOpenThread={openThread} onCreateProject={createProject} projects={projects} onProject={(p) => { setProject(p); setRailView("chat"); }} />
           ) : !thread && blocks.length === 0 ? (
             <div className="landing">
-              <h1>Where should OpenCodex work?</h1>
+              <h1>{(MODE_STRINGS[settings.appMode || "codex"] || MODE_STRINGS.codex).title}</h1>
               <div style={{ width: "100%", maxWidth: 680 }}>
                 <Composer
                   value={input}
@@ -772,7 +802,7 @@ export default function App() {
                   onModel={setThreadModel}
                   approvalMode={modeForThread}
                   onApprovalMode={setThreadMode}
-                  placeholder={`Ask ${project?.name || "OpenCodex"} to do something…`}
+                  placeholder={(MODE_STRINGS[settings.appMode || "codex"] || MODE_STRINGS.codex).ask}
                   autoFocus
                   projectId={project?.id}
                   onStop={stopTurn}
@@ -780,7 +810,7 @@ export default function App() {
                 <div className="composer-hint">OpenCodex can make mistakes. Check important info.</div>
               </div>
               <div className="chips">
-                {CHIPS.map((c) => (
+                {(MODE_STRINGS[settings.appMode || "codex"] || MODE_STRINGS.codex).chips.map((c) => (
                   <button key={c} className="chip" onClick={() => send(c)}>
                     {c}
                   </button>
@@ -807,6 +837,7 @@ export default function App() {
                         onRevise={reviseTurn}
                         onRestore={restoreCheckpoint}
                         diffPreview={(b as any).approvalId ? approvalDiffs.current[(b as any).approvalId] : undefined}
+                        blockIndex={i}
                       />
                     </div>
                   ))}

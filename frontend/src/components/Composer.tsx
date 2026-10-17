@@ -117,6 +117,24 @@ export function Composer({
   const modelInfo = models.find((m) => m.id === model);
   const modeInfo = APPROVAL_MODES.find((m) => m.id === approvalMode) || APPROVAL_MODES[0];
 
+  const [listening, setListening] = useState(false);
+  const startVoice = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    const rec = new SR();
+    rec.lang = navigator.language || "zh-CN";
+    rec.interimResults = false;
+    let finalText = "";
+    rec.onresult = (e: any) => {
+      for (const r of e.results) if (r.isFinal) finalText += r[0].transcript;
+      if (finalText) onChange(`${value ? value + " " : ""}${finalText}`);
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    setListening(true);
+    rec.start();
+  };
+
   const send = () => {
     const v = value.trim();
     if (!v) return;
@@ -242,6 +260,11 @@ export function Composer({
         </div>
 
         <span className="grow" />
+        {typeof window !== "undefined" && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) && (
+          <button className={`icon-btn mic ${listening ? "rec" : ""}`} title="语音输入" onClick={startVoice}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3" /></svg>
+          </button>
+        )}
         {running ? (
           <button className="send-btn stop-btn" title="停止" onClick={onStop}>
             <IconStop />

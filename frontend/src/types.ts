@@ -17,8 +17,11 @@ export interface ProviderInfo {
   hasKey: boolean;
 }
 
+export type AppMode = "codex" | "claude" | "muse";
+
 export interface Settings {
   theme: "dark" | "light" | "system";
+  appMode: AppMode;
   provider: string;
   providers: Record<string, ProviderConfig>;
   model: string;
@@ -94,6 +97,7 @@ export type Block =
       durationMs?: number;
       reason?: string;
       approvalId?: string;
+      expiresAt?: number;
     }
   | ({ kind: "file_change" } & FileChangeItem)
   | { kind: "file_group"; items: FileChangeItem[] }

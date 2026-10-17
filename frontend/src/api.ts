@@ -43,6 +43,7 @@ export const api = {
   revise: (threadId: string, turnTs: number, prompt: string) => fetch(`/api/threads/${threadId}/revise`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ turnTs, prompt }) }).then(j<{ ok: boolean }>),
   attachWorktree: (threadId: string) => fetch(`/api/threads/${threadId}/worktree`, { method: "POST" }).then(j<{ ok: boolean; worktree: { path: string; branch: string } }>),
   detachWorktree: (threadId: string) => fetch(`/api/threads/${threadId}/worktree`, { method: "DELETE" }).then(j<{ ok: boolean }>),
+  mergeWorktree: (threadId: string) => fetch(`/api/threads/${threadId}/worktree/merge`, { method: "POST" }).then(j<{ ok: boolean; error?: string }>),
   annotate: (threadId: string, quote: string, note: string) => fetch(`/api/threads/${threadId}/annotate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ quote, note }) }).then(j<{ ok: boolean }>),
   retry: (threadId: string) => fetch(`/api/threads/${threadId}/retry`, { method: "POST" }).then(j<{ ok: boolean }>),
   cancel: (threadId: string) => fetch(`/api/threads/${threadId}/cancel`, { method: "POST" }).then(j<{ ok: boolean }>),

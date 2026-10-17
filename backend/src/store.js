@@ -9,6 +9,7 @@ const WORKSPACE_ROOT = path.join(DATA_HOME, "workspaces");
 const DEFAULT_STATE = {
   settings: {
     theme: "dark",
+    appMode: "codex",
     provider: "simulated",
     providers: {},
     model: "gpt-5.1-codex",

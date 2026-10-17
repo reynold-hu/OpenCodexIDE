@@ -1308,3 +1308,100 @@ pre.codeblock {
 .appr-diff { border-top: 1px solid var(--border); }
 .ad-toggle { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); padding: 6px 12px 2px 30px; }
 .ad-toggle:hover { color: var(--text); }
+
+/* ---------- app mode: switcher ---------- */
+.app-switcher { display: flex; gap: 2px; background: var(--elev); border: 1px solid var(--border); border-radius: 999px; padding: 2px; margin-right: 6px; }
+.as-pill { font-size: 11px; padding: 3px 10px; border-radius: 999px; color: var(--muted); transition: all .15s ease; }
+.as-pill:hover { color: var(--text); }
+.as-pill.on { background: var(--accent); color: #fff; font-weight: 600; }
+.wt-chip { gap: 6px; }
+.wt-merge, .wt-detach { font-size: 10.5px; padding: 1px 7px; border-radius: 6px; border: 1px solid var(--border-strong); color: var(--text); }
+.wt-merge { background: var(--green); border-color: var(--green); color: #fff; }
+.wt-detach { color: var(--faint); }
+.mic.rec { color: #e04a2f; animation: pulse 1s infinite; }
+.appr-cd { font-family: var(--mono); font-size: 11px; color: var(--faint); align-self: center; }
+.appr-cd.warn { color: var(--accent-strong); font-weight: 700; }
+.annotation-card.clickable { cursor: pointer; }
+.annotation-card.clickable:hover { background: var(--hover); }
+
+/* ---------- Claude mode: warm cream + terracotta + serif ---------- */
+[data-app="claude"] {
+  --accent: #da6a46;
+  --accent-strong: #b8502e;
+  --radius: 16px;
+}
+[data-app="claude"][data-theme="dark"] {
+  --bg: #26251f;
+  --bg-deep: #201f1a;
+  --elev: #312f28;
+  --elev-2: #3b392f;
+  --text: #f0eee5;
+  --muted: #b4b0a2;
+  --faint: #8a867a;
+  --border: rgba(240, 238, 229, 0.09);
+  --border-strong: rgba(240, 238, 229, 0.16);
+  --cmd-bg: #1c1b16;
+}
+[data-app="claude"][data-theme="light"] {
+  --bg: #faf9f5;
+  --bg-deep: #f0eee5;
+  --elev: #ffffff;
+  --elev-2: #f5f3ea;
+  --text: #3d3a34;
+  --muted: #6e6a60;
+  --faint: #9b968a;
+  --border: rgba(61, 58, 52, 0.1);
+  --border-strong: rgba(61, 58, 52, 0.18);
+  --cmd-bg: #ffffff;
+}
+[data-app="claude"] .landing h1,
+[data-app="claude"] .agent-msg h1, [data-app="claude"] .agent-msg h2, [data-app="claude"] .agent-msg h3,
+[data-app="claude"] .app-title {
+  font-family: Georgia, "Songti SC", "Noto Serif SC", serif;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+[data-app="claude"] .user-row { border-radius: 22px; }
+[data-app="claude"] .composer { border-radius: 22px; }
+[data-app="claude"] .card { border-radius: 14px; }
+[data-app="claude"] .chip { border-radius: 999px; background: var(--elev); }
+[data-app="claude"] .sb-brand .name { font-family: Georgia, serif; font-weight: 500; }
+
+/* ---------- Muse mode: monochrome studio, bold type ---------- */
+[data-app="muse"] {
+  --accent: #ffffff;
+  --accent-strong: #a0a0a6;
+  --radius: 4px;
+}
+[data-app="muse"][data-theme="dark"] {
+  --bg: #0a0a0b;
+  --bg-deep: #000000;
+  --elev: #161618;
+  --elev-2: #1e1e21;
+  --text: #fafafa;
+  --muted: #9a9aa0;
+  --faint: #62626a;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --cmd-bg: #0d0d0e;
+}
+[data-app="muse"][data-theme="light"] {
+  --bg: #ffffff;
+  --bg-deep: #f5f5f6;
+  --elev: #fafafa;
+  --elev-2: #ebebee;
+  --text: #0a0a0b;
+  --muted: #55555c;
+  --faint: #8b8b92;
+  --border: rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.24);
+  --cmd-bg: #fafafa;
+}
+[data-app="muse"] .landing h1 { font-weight: 800; letter-spacing: -1.5px; text-transform: uppercase; font-size: 26px; }
+[data-app="muse"] .card, [data-app="muse"] .composer, [data-app="muse"] .user-row, [data-app="muse"] .menu, [data-app="muse"] .tmenu { border-radius: 4px; }
+[data-app="muse"] .send-btn.enabled { background: var(--text); }
+[data-app="muse"] .as-pill.on { background: var(--text); color: var(--bg); }
+[data-app="muse"] .chip { border-radius: 4px; font-weight: 600; letter-spacing: 0.3px; }
+[data-app="muse"] .sb-group { text-transform: uppercase; letter-spacing: 1.2px; }
+[data-app="muse"] .pill { border-radius: 4px; }
+[data-app="muse"] .big-logo, [data-app="muse"] .logo { border-radius: 4px; }

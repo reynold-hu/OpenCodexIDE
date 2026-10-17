@@ -387,6 +387,28 @@ app.post("/api/threads/:id/retry", (req, res) => {
       save();
     });
 });
+app.post("/api/threads/:id/worktree/merge", async (req, res) => {
+  const t = findThread(req.params.id);
+  if (!t) return res.status(404).json({ error: "not found" });
+  if (!t.worktree) return res.status(400).json({ error: "no worktree" });
+  const project = findProject(t.projectId);
+  try {
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const ex = promisify(execFile);
+    await ex("git", ["add", "-A"], { cwd: t.worktree.path });
+    await ex("git", ["commit", "-q", "--allow-empty", "-m", `oc: ${t.title || t.id}`], { cwd: t.worktree.path }).catch(() => {});
+    const repoDir = workspacePath(project);
+    await ex("git", ["merge", "--no-edit", t.worktree.branch], { cwd: repoDir });
+    const ev = { type: "worktree_merged", branch: t.worktree.branch, ts: Date.now() };
+    t.events.push(ev);
+    bus.broadcast(t.id, ev);
+    save();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: (e.stderr || e.message || "").slice(0, 400) });
+  }
+});
 app.post("/api/threads/:id/cancel", (req, res) => {
   const t = findThread(req.params.id);
   if (!t) return res.status(404).json({ error: "not found" });
