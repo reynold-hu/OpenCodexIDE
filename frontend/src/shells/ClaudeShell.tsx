@@ -7,7 +7,7 @@ import { playChime } from "../lib/sound";
 import { Composer } from "../components/Composer";
 import { BlockView } from "../components/Blocks";
 import { Markdown } from "../Markdown";
-import { IconPlus, IconSearch, IconGear, IconX, IconFile, IconGlobe, IconChevron, IconTrash } from "../icons";
+import { IconPlus, IconSearch, IconGear, IconX, IconFile, IconGlobe, IconChevron, IconTrash, IconPanel, IconLayers, IconFolder, IconChat } from "../icons";
 import { ClaudeRayMark } from "../components/RayMark";
 
 type Page = "home" | "chat" | "projects" | "artifacts";
@@ -28,6 +28,7 @@ export default function ClaudeShell() {
   const [artifacts, setArtifacts] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [apTab, setApTab] = useState<"preview" | "code">("preview");
   const esRef = useRef<EventSource | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -107,12 +108,18 @@ export default function ClaudeShell() {
   return (
     <div className="claude-root">
       <aside className="cl-side">
-        <div className="cl-brand"><ClaudeRayMark size={22} /><span>Claude</span></div>
+        <div className="cl-account">
+          <span className="cl-avatar">{(settings.account.name || "U")[0].toUpperCase()}</span>
+          <IconChevron size={11} />
+          <span style={{ flex: 1 }} />
+          <button className="cl-collapse icon-btn" title="Collapse"><IconPanel size={13} /></button>
+        </div>
         <button className="cl-new" onClick={() => { esRef.current?.close(); setThread(null); setBlocks([]); setPage("home"); }}><IconPlus size={13} /> New chat</button>
         <div className="cl-search"><IconSearch size={12} /><input placeholder="Search chats" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
         <nav className="cl-nav">
-          <button className={page === "projects" ? "on" : ""} onClick={() => setPage("projects")}>Projects</button>
-          <button className={page === "artifacts" ? "on" : ""} onClick={() => setPage("artifacts")}>Artifacts</button>
+          <button className={page === "chat" || page === "home" ? "on" : ""} onClick={() => setPage(thread ? "chat" : "home")}><IconChat size={13} /> Chats</button>
+          <button className={page === "projects" ? "on" : ""} onClick={() => setPage("projects")}><IconFolder size={13} /> Projects</button>
+          <button className={page === "artifacts" ? "on" : ""} onClick={() => setPage("artifacts")}><IconLayers size={13} /> Artifacts</button>
         </nav>
         <div className="cl-recents-label">Recents</div>
         <div className="cl-recents">
@@ -133,23 +140,21 @@ export default function ClaudeShell() {
       <main className="cl-main">
         {page === "home" && (
           <div className="cl-home">
-            <ClaudeRayMark size={44} />
-            <h1>How can I help you today?</h1>
+            <h1>{new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 18 ? "Good afternoon" : "Good evening"}, {settings.account.name}</h1>
             <div className="cl-input-wrap">
               <textarea
                 className="cl-input"
                 rows={2}
-                placeholder="Message Claude…"
+                placeholder="How can I help you today?"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); input.trim() && send(input.trim()); } }}
               />
               <div className="cl-input-bar">
-                <span className="cl-style">Chat</span>
-                <span className="cl-style">Think</span>
-                <span className="cl-style">Code</span>
+                <button className="cl-explore"><IconChevron size={10} dir="up" /> Explore modes</button>
                 <span style={{ flex: 1 }} />
-                <button className="cl-send" onClick={() => input.trim() && send(input.trim())}>↥</button>
+                <button className="cl-mic" title="Dictation"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3" /></svg></button>
+                <button className="cl-send" onClick={() => input.trim() && send(input.trim())}>↑</button>
               </div>
             </div>
             {artifacts.slice(0, 3).length > 0 && (
@@ -174,7 +179,7 @@ export default function ClaudeShell() {
                     {b.kind === "prompt" ? <div className="cl-user">{(b as any).text}</div>
                       : b.kind === "file_change" ? <button className="cl-artifact-pill" onClick={() => openArtifact((b as any).path)}><IconFile size={12} /> {(b as any).path} · 查看产物</button>
                       : b.kind === "preview" ? <button className="cl-artifact-pill" onClick={() => window.open((b as any).url, "_blank")}><IconGlobe size={12} /> 网页预览 · {(b as any).path}</button>
-                      : <div className="cl-assistant"><ClaudeRayMark size={18} /><div style={{ flex: 1, minWidth: 0 }}><BlockView block={b} onApprove={async (id, d) => { await api.approval(id, d); }} projectId={project?.id} /></div></div>}
+                      : <div className="cl-assistant"><div style={{ flex: 1, minWidth: 0 }}><BlockView block={b} onApprove={async (id, d) => { await api.approval(id, d); }} projectId={project?.id} /></div></div>}
                   </div>
                 ))}
                 {running && <div className="cl-assistant"><ClaudeRayMark size={18} /><span className="thinking-dots"><i /><i /><i /></span></div>}
@@ -193,11 +198,19 @@ export default function ClaudeShell() {
             {artifact && (
               <div className="cl-artifact-panel">
                 <div className="ap-head">
-                  <IconFile size={13} />
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>{artifact.path}</span>
+                  <IconFile size={13} style={{ color: "var(--accent)" }} />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: 600 }}>{artifact.path}</span>
+                  <span style={{ flex: 1 }} />
+                  <div className="ap-tabs">
+                    <button className={apTab === "preview" ? "on" : ""} onClick={() => setApTab("preview")}>Preview</button>
+                    <button className={apTab === "code" ? "on" : ""} onClick={() => setApTab("code")}>Code</button>
+                  </div>
+                  <span className="ap-ver">1/1</span>
                   <button className="icon-btn" onClick={() => setArtifact(null)}><IconX size={13} /></button>
                 </div>
-                {artifact.path.endsWith(".html") ? <iframe className="ap-frame" srcDoc={artifact.content} title="artifact" sandbox="allow-scripts" /> : <pre className="ap-doc">{artifact.content}</pre>}
+                {apTab === "preview" && artifact.path.endsWith(".html")
+                  ? <iframe className="ap-frame" srcDoc={artifact.content} title="artifact" sandbox="allow-scripts" />
+                  : <pre className="ap-doc">{artifact.content}</pre>}
               </div>
             )}
           </div>
