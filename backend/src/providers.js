@@ -87,7 +87,8 @@ export function providerRuntime(state, id) {
   const p = preset(id);
   const conf = (state.settings.providers || {})[p.id] || {};
   const baseUrl = (conf.baseUrl || p.baseUrl || "").replace(/\/+$/, "");
-  const apiKey = conf.apiKey || (p.id !== "simulated" ? process.env.OPEN_CODEX_API_KEY || "" : "");
+  const envKey = p.id !== "simulated" ? process.env.OPEN_CODEX_API_KEY || process.env[`${p.id.toUpperCase()}_API_KEY`] || "" : "";
+  const apiKey = conf.apiKey || envKey;
   const models = conf.models && conf.models.length ? conf.models : p.models || [];
   const model = conf.model && models.includes(conf.model) ? conf.model : models[0] || "";
   return { ...p, baseUrl, apiKey, models, model };

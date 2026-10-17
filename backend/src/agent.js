@@ -8,6 +8,7 @@ import { workspacePath, save, DATA_HOME } from "./store.js";
 import { chatStream, AGENT_TOOLS } from "./llm.js";
 import { effectiveProvider, isRealProvider } from "./providers.js";
 import { startProcess } from "./procs.js";
+import { runOpencodeTurn, abortOpencode } from "./opencode.js";
 import { BUILTIN_AGENTS, selectAgents } from "./roles.js";
 
 const execFileAsync = promisify(execFile);
@@ -97,6 +98,7 @@ export function cancelTurn(threadId) {
   const t = activeTurns.get(threadId);
   if (!t) return false;
   t.aborted = true;
+  if (t.oc) abortOpencode(t.oc.dir, t.oc.sid).catch(() => {});
   try { t.llmAbort?.abort(); } catch {}
   try {
     t.child?.kill("SIGTERM");
@@ -889,6 +891,49 @@ export async function runTurn(state, thread, prompt, req_agents) {  const provid
     if (prompt.trim().startsWith("/")) {
       const handled = await runSlashCommand(state, thread, dir, prompt);
       if (handled) return;
+    }
+    if (state.settings.harness === "opencode" && thread.product !== "grok") {
+      activeTurns.set(thread.id, { aborted: false, child: null, llmAbort: null, oc: { dir, sid: thread.ocSession } });
+      const amText = new Map();
+      const pushEv = (ev) => {
+        if (ev.type === "agent_message") {
+          const e = { type: "agent_message", id: ev.id, content: "", done: false, ts: Date.now() };
+          thread.events.push(e);
+          amText.set(ev.id, e);
+          bus.broadcast(thread.id, e);
+        } else if (ev.type === "agent_message_delta") {
+          const e = amText.get(ev.id);
+          if (e) e.content += ev.content;
+          bus.broadcast(thread.id, ev);
+        } else if (ev.type === "agent_message_done") {
+          const e = amText.get(ev.id);
+          if (e) { e.content = ev.content; e.done = true; }
+          bus.broadcast(thread.id, ev);
+        } else if (ev.type === "command_result") {
+          const c = thread.events.find((x) => x.type === "command" && x.id === ev.id);
+          if (c) { c.status = ev.status; c.output = ev.output; c.code = ev.code; }
+          bus.broadcast(thread.id, ev);
+        } else if (ev.type === "turn_complete") {
+          for (const e of amText.values()) if (!e.done) { e.done = true; bus.broadcast(thread.id, { type: "agent_message_done", id: e.id, content: e.content }); }
+          pushEvent(state, thread, ev);
+        } else {
+          pushEvent(state, thread, ev);
+        }
+      };
+      await runOpencodeTurn({
+        dir,
+        providerID: provider.id,
+        modelID: provider.model || state.settings.model,
+        prompt: await expandMentions(dir, prompt),
+        threadId: thread.id,
+        onEvent: pushEv,
+        getThread: () => thread,
+        setThread: (patch) => Object.assign(thread, patch),
+      });
+      thread.status = "idle";
+      if (!thread.title) thread.title = prompt.trim().slice(0, 42);
+      save();
+      return;
     }
     const checkpoint = await gitCheckpoint(dir, `ocx-checkpoint ${thread.id} ${Date.now()}`);
     const expanded = await expandMentions(dir, prompt);

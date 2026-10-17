@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { ApprovalMode, ModelInfo, ProviderInfo, Settings } from "../types";
 import { IconX, IconCheck } from "../icons";
 import { api } from "../api";
@@ -22,6 +22,13 @@ export function SettingsModal({
   const conf = (settings.providers || {})[settings.provider] || {};
   const [keyDraft, setKeyDraft] = useState("");
   const [syncMsg, setSyncMsg] = useState("");
+  const [harnessInfo, setHarnessInfo] = useState("检测中…");
+  useEffect(() => {
+    fetch("/api/harness").then((r) => r.json()).then((h) => {
+      const ms = Object.entries(h.opencodeModels || {}).map(([k, v]) => `${k}:${(v as string[]).slice(0, 2).join("/")}`).join("  ");
+      setHarnessInfo(h.available ? `✓ 已安装 · ${ms}` : "✗ 未找到 opencode 二进制");
+    }).catch(() => setHarnessInfo("查询失败"));
+  }, []);
 
   const patchActive = (p: Record<string, unknown>) => {
     onChange({ providers: { [settings.provider]: p } } as Partial<Settings>);
@@ -139,6 +146,24 @@ export function SettingsModal({
             </div>
           ))}
 
+          {(import.meta as any).env.VITE_PRODUCT === "codex" && (
+            <>
+              <div className="menu-label" style={{ padding: "14px 0 4px" }}>AGENT HARNESS</div>
+              <div className="set-row">
+                <div className="sr-label">
+                  <div className="sr-title">执行引擎</div>
+                  <div className="sr-desc">opencode serve = 真实 agent 循环(自动拉起 headless server,复用其 provider 配置);内置 = 自带轻量循环/模拟器</div>
+                </div>
+                <div className="segmented">
+                  <button className={(settings as any).harness !== "opencode" ? "on" : ""} onClick={() => onChange({ harness: "builtin" } as any)}>内置引擎</button>
+                  <button className={(settings as any).harness === "opencode" ? "on" : ""} onClick={() => onChange({ harness: "opencode" } as any)}>opencode serve</button>
+                </div>
+              </div>
+              <div className="set-row">
+                <div className="sr-label"><div className="sr-title">opencode 可用性</div><div className="sr-desc">{harnessInfo}</div></div>
+              </div>
+            </>
+          )}
           <div className="menu-label" style={{ padding: "14px 0 4px" }}>GENERAL</div>
           <div className="set-row">
             <div className="sr-label">

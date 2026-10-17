@@ -11,6 +11,7 @@ import { ensureWorkspace, tree, readFileLimited, writeFileInWorkspace, gitStatus
 import { PROVIDER_PRESETS, providerRuntime, effectiveProvider, sanitizeSettings, mergeProviderConfig } from "./providers.js";
 import { listRemoteModels } from "./llm.js";
 import { startProcess, listProcesses, stopProcess, tailLog } from "./procs.js";
+import { opencodeAvailable, refreshModelCache } from "./opencode.js";
 
 import { promisify as _promisify } from "node:util";
 const execFilePromise = _promisify(execFile);
@@ -760,6 +761,15 @@ setInterval(() => {
 
 // ---------- health ----------
 app.get("/api/health", (req, res) => res.json({ ok: true, name: "Open Every Agent IDE", product: PRODUCT, version: "0.1.0" }));
+
+app.get("/api/harness", async (req, res) => {
+  const available = await opencodeAvailable();
+  let models = {};
+  if (available && state.projects[0]) {
+    try { models = await refreshModelCache(workspacePath(state.projects[0])); } catch {}
+  }
+  res.json({ available, current: state.settings.harness || "builtin", opencodeModels: models });
+});
 
 await bootstrap();
 app.listen(PORT, () => console.log(`Open Every Agent IDE backend on http://localhost:${PORT}`));

@@ -708,6 +708,7 @@ export default function CodexShell() {
               </select>
             )}
             <span className="mt-badge">{models.find((m) => m.id === modelForThread)?.name || modelForThread}</span>
+            {(settings.harness as any) === "opencode" && <span className="mt-badge mt-badge-icon" style={{ color: "var(--green)" }}>⚙ opencode harness</span>}
             {modeForThread !== "auto" && <span className="mt-badge" style={{ color: "var(--accent-strong)" }}><IconAlert size={11} /> {modeForThread}</span>}
             {(thread?.scheduled?.length ?? 0) > 0 && <span className="mt-badge mt-badge-icon"><IconClock size={11} /> {thread!.scheduled!.length}</span>}
             {(settings.appMode === "grok" || settings.appMode === "muse") && (

@@ -29,6 +29,7 @@ export interface Settings {
   reasoning: string;
   approvalMode: ApprovalMode;
   sounds: boolean;
+  harness?: string;
   voice?: boolean;
   account: { name: string; email: string };
 }
