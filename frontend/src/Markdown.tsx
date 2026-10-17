@@ -1,4 +1,5 @@
 import React from "react";
+import { IconGlobe } from "./icons";
 
 function inline(text: string, keyBase: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
@@ -25,7 +26,7 @@ function inline(text: string, keyBase: string): React.ReactNode[] {
                 window.dispatchEvent(new CustomEvent("ocx:preview", { detail: { path: mm[2].slice("preview:".length) } }));
               }}
             >
-              🌐 {mm[1]}
+              <IconGlobe size={12} style={{ verticalAlign: -2, marginRight: 3 }} />{mm[1]}
             </a>
           );
         } else {

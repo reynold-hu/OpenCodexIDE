@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import type { ApprovalMode, ModelInfo, ProviderInfo, Settings } from "../types";
-import { IconX } from "../icons";
+import { IconX, IconCheck } from "../icons";
 import { api } from "../api";
 
 export function SettingsModal({
@@ -110,7 +110,7 @@ export function SettingsModal({
                     try {
                       const r = await api.providerModels(settings.provider);
                       patchActive({ models: r.models });
-                      setSyncMsg(`✓ ${r.models.length} models`);
+                      setSyncMsg(`ok · ${r.models.length} models`);
                     } catch (err: any) {
                       setSyncMsg(`✗ ${String(err?.message || err).slice(0, 60)}`);
                     }

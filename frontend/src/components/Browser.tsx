@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { IconPlus, IconX, IconChevron, IconGlobe, IconFolder, IconTerminal, IconSummary } from "../icons";
+import { IconPlus, IconX, IconChevron, IconGlobe, IconFolder, IconTerminal, IconSummary, IconRefresh, IconArrowLeft } from "../icons";
 import { api } from "../api";
 
 interface Tab {
@@ -102,9 +102,9 @@ export function Browser({
       </div>
 
       <div className="browser-nav">
-        <button className="icon-btn" onClick={() => go(-1)} disabled={active.idx <= 0} style={{ opacity: active.idx <= 0 ? 0.35 : 1 }}><IconChevron size={14} dir="right" style={{ transform: "rotate(180deg)" }} /></button>
+        <button className="icon-btn" onClick={() => go(-1)} disabled={active.idx <= 0} style={{ opacity: active.idx <= 0 ? 0.35 : 1 }}><IconArrowLeft size={14} /></button>
         <button className="icon-btn" onClick={() => go(1)} style={{ opacity: active.idx >= active.hist.length - 1 ? 0.35 : 1 }}><IconChevron size={14} dir="right" /></button>
-        <button className="icon-btn" onClick={reload}><span style={{ fontSize: 14 }}>⟳</span></button>
+        <button className="icon-btn" onClick={reload}><IconRefresh size={13} /></button>
         <input
           className="omnibox"
           placeholder="搜索或输入网址"

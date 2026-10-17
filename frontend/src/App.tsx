@@ -10,7 +10,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { NavRail, type RailView } from "./components/NavRail";
 import { ThreadMenu } from "./components/ThreadMenu";
 import { SummaryPanel } from "./components/SummaryPanel";
-import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX } from "./icons";
+import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft } from "./icons";
 
 const CHIPS = [
   "Create a calculator in JavaScript",
@@ -648,7 +648,7 @@ export default function App() {
               <IconPlus size={14} />
             </button>
             <span className="mt-title">{thread?.title || "New chat"}</span>
-            {thread?.pinned && <span className="mt-badge">📌 置顶</span>}
+            {thread?.pinned && <span className="mt-badge mt-badge-icon"><IconPin size={11} /> 置顶</span>}
             {branches.length > 0 && (
               <select
                 className="mt-badge"
@@ -667,8 +667,8 @@ export default function App() {
               </select>
             )}
             <span className="mt-badge">{models.find((m) => m.id === modelForThread)?.name || modelForThread}</span>
-            {modeForThread !== "auto" && <span className="mt-badge" style={{ color: "var(--accent-strong)" }}>⚠ {modeForThread}</span>}
-            {(thread?.scheduled?.length ?? 0) > 0 && <span className="mt-badge">⏰ {thread!.scheduled!.length}</span>}
+            {modeForThread !== "auto" && <span className="mt-badge" style={{ color: "var(--accent-strong)" }}><IconAlert size={11} /> {modeForThread}</span>}
+            {(thread?.scheduled?.length ?? 0) > 0 && <span className="mt-badge mt-badge-icon"><IconClock size={11} /> {thread!.scheduled!.length}</span>}
           </div>
 
           {childChats.length > 0 && (
@@ -676,7 +676,7 @@ export default function App() {
               <span className="sc-label">侧边聊天：</span>
               {childChats.map((c) => (
                 <button key={c.id} className={`sc-chip ${thread?.id === c.id ? "active" : ""}`} onClick={() => openThread(c)}>
-                  ↳ {c.title}
+                  <IconCornerUpLeft size={11} /> {c.title}
                 </button>
               ))}
             </div>
@@ -687,7 +687,7 @@ export default function App() {
                 const parent = threads.find((t) => t.id === thread.sideOf) || (await api.thread(thread.sideOf!));
                 openThread(parent as ThreadMeta);
               }}>
-                ← 返回父对话
+                <IconArrowLeft size={11} /> 返回父对话
               </button>
             </div>
           )}
@@ -728,7 +728,7 @@ export default function App() {
               <div className="thread-scroll" ref={scrollRef} onScroll={onScroll}>
                 <div className="thread-inner">
                   {grouped.map((b, i) => (
-                    <div key={i} id={`blk-${i}`}>
+                    <div key={i} id={`blk-${i}`} className="block-enter">
                       <BlockView
                         block={b}
                         onApprove={approve}
@@ -924,7 +924,7 @@ function RailPage({ view, threads, onOpenThread, onCreateProject, projects, onPr
               <span className="rp-sub" style={{ fontFamily: "var(--mono)" }}>{p.path}</span>
             </button>
           ))}
-          <button className="rp-item" onClick={onCreateProject}>＋ New project</button>
+          <button className="rp-item" onClick={onCreateProject}><IconPlus size={13} /> New project</button>
         </div>
       )}
       {view === "agents" && (

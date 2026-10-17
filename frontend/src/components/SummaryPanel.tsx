@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import type { Block, ThreadMeta } from "../types";
 import { api } from "../api";
-import { IconGlobe, IconFile, IconX, IconClock, IconPlus, IconTerminal, IconChevron } from "../icons";
+import { IconGlobe, IconFile, IconX, IconClock, IconPlus, IconTerminal, IconChevron, IconCheck, IconArrowUpRight } from "../icons";
 
 export function SummaryPanel({
   thread,
@@ -88,11 +88,11 @@ export function SummaryPanel({
               <div className="sm-progress"><i style={{ width: total ? `${(done / total) * 100}%` : "0%" }} /></div>
               {lastPlan.items.map((it, i) => (
                 <div key={i} className={`plan-item ${it.done ? "done" : ""}`} style={{ padding: "3px 0" }}>
-                  <span className={`check ${it.done ? "on" : ""}`}>{it.done ? "✓" : ""}</span>
+                  <span className={`check ${it.done ? "on" : ""}`}>{it.done ? <IconCheck size={9} /> : null}</span>
                   {it.title}
                 </div>
               ))}
-              <button className="sm-jump" onClick={() => onJump(planIdx)}>定位到计划 ↗</button>
+              <button className="sm-jump" onClick={() => onJump(planIdx)}>定位到计划 <IconArrowUpRight size={11} style={{ verticalAlign: -1 }} /></button>
             </>
           ) : (
             <div className="sm-empty">本轮还没有计划</div>
@@ -113,7 +113,7 @@ export function SummaryPanel({
         </div>
 
         <div className="sm-section">
-          <div className="sm-title">输出内容 <span className="sm-add-btn" onClick={() => { const u = prompt("添加来源链接 URL："); if (u) onAddSource(u); }}>+</span></div>
+          <div className="sm-title">输出内容 <span className="sm-add-btn" onClick={() => { const u = prompt("添加来源链接 URL："); if (u) onAddSource(u); }}><IconPlus size={12} /></span></div>
           {previews.length === 0 && fileItems.length === 0 && <div className="sm-empty">创建文件或站点</div>}
           {fileItems.slice(-4).reverse().map((f, i) => (
             <button key={`f${i}`} className="sm-file" onClick={() => onOpenCanvas(f.path)}>
@@ -142,7 +142,7 @@ export function SummaryPanel({
         )}
 
         <div className="sm-section">
-          <div className="sm-title">来源 <span className="sm-add-btn" onClick={() => { const u = prompt("添加来源链接 URL："); if (u) onAddSource(u); }}>+</span></div>
+          <div className="sm-title">来源 <span className="sm-add-btn" onClick={() => { const u = prompt("添加来源链接 URL："); if (u) onAddSource(u); }}><IconPlus size={12} /></span></div>
           {sources.length === 0 && <div className="sm-empty">Agent 引用的链接会记录在这里</div>}
           {sources.slice(-6).map((s, i) => (
             <a key={i} className="sm-file" href={s.url} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>

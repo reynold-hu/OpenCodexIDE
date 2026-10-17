@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import type { Project } from "../types";
-import { IconX, IconFile, IconFolder } from "../icons";
+import { IconX, IconFile, IconFolder, IconChevron } from "../icons";
 import { Browser } from "./Browser";
 
 type Tab = "review" | "files" | "terminal" | "browser" | "canvas";
@@ -153,7 +153,7 @@ export function SidePanel({
                   }} style={{ cursor: "pointer" }}>
                     <span className={`git-kind ${c.kind}`}>{c.kind === "added" || c.kind === "untracked" ? "A" : c.kind === "deleted" ? "D" : "M"}</span>
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{c.file}</span>
-                    {diffFile === c.file && <span style={{ fontSize: 10, color: "var(--accent)" }}>▾</span>}
+                    {diffFile === c.file && <span style={{ color: "var(--accent)", display: "grid" }}><IconChevron size={11} dir="up" /></span>}
                   </div>
                 ))}
                 {diff && (

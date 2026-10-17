@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import type { Block, FileChangeItem } from "../types";
 import { Markdown } from "../Markdown";
-import { IconCheck, IconChevron, IconShield, IconX, IconFile, IconGlobe, IconUndo, IconCopy, IconThumbUp, IconThumbDown, IconSpeaker, IconExternal, IconCalendar, IconPencil } from "../icons";
+import { IconCheck, IconChevron, IconShield, IconX, IconFile, IconGlobe, IconUndo, IconCopy, IconThumbUp, IconThumbDown, IconSpeaker, IconExternal, IconCalendar, IconPencil, IconProcess } from "../icons";
 
 export function DiffView({ patch }: { patch: string }) {
   const lines = patch.split("\n");
@@ -39,7 +39,7 @@ export function PlanCard({ block }: { block: Extract<Block, { kind: "plan" }> })
         <div className="plan-list">
           {block.items.map((it, i) => (
             <div key={i} className={`plan-item ${it.done ? "done" : ""}`}>
-              <span className={`check ${it.done ? "on" : ""}`}>{it.done ? "✓" : ""}</span>
+              <span className={`check ${it.done ? "on" : ""}`}>{it.done ? <IconCheck size={9} /> : null}</span>
               {it.title}
             </div>
           ))}
@@ -207,7 +207,7 @@ export function ProcessCard({ block, projectId }: { block: Extract<Block, { kind
     <div className="card cmd-card">
       <div className="cmd-line">
         <span className={`status-dot ${stopped ? "idle" : "running"}`} style={stopped ? { background: "var(--faint)" } : undefined} />
-        <span className="dollar">⧉</span>
+        <span className="dollar"><IconProcess size={12} /></span>
         <span className="cmd-text">{block.cmd}</span>
         <span className="ch-meta">pid {block.pid}</span>
         {!stopped && (
