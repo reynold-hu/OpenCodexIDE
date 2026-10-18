@@ -12,6 +12,7 @@ import { PROVIDER_PRESETS, providerRuntime, effectiveProvider, sanitizeSettings,
 import { listRemoteModels } from "./llm.js";
 import { startProcess, listProcesses, stopProcess, tailLog } from "./procs.js";
 import { opencodeAvailable, refreshModelCache } from "./opencode.js";
+import { registrationOptions, finishRegistration, authOptions, verifyAssertion, checkToken, revokeToken, issueToken } from "./passkey.js";
 
 import { promisify as _promisify } from "node:util";
 const execFilePromise = _promisify(execFile);
@@ -23,6 +24,16 @@ fs.mkdirSync(SHOTS_DIR, { recursive: true });
 
 app.use(cors());
 app.use(express.json({ limit: "16mb" }));
+
+// passkey lock middleware: when enabled, all /api routes need a session token
+app.use((req, res, next) => {
+  if (!state.settings.passkey?.enabled) return next();
+  if (req.path.startsWith("/api/passkey/") || req.path === "/api/health") return next();
+  if (req.path.startsWith("/preview/") || req.path.startsWith("/shots/")) return next();
+  const token = String(req.header("x-oea-token") || req.query.token || "");
+  if (checkToken(token)) return next();
+  return res.status(401).json({ error: "locked", code: "passkey-required" });
+});
 
 // product route surface guard: IDE/fs routes belong to codex only
 app.use((req, res, next) => {
@@ -786,6 +797,40 @@ setInterval(() => {
 
 // ---------- health ----------
 app.get("/api/health", (req, res) => res.json({ ok: true, name: "Open Every Agent IDE", product: PRODUCT, version: "0.1.0" }));
+
+app.get("/api/passkey/status", (req, res) => {
+  const pk = state.settings.passkey || {};
+  const token = String(req.header("x-oea-token") || req.query.token || "");
+  res.json({ enabled: !!pk.enabled, unlocked: !pk.enabled || checkToken(token) });
+});
+app.post("/api/passkey/register-begin", (req, res) => {
+  if (state.settings.passkey?.enabled) return res.status(409).json({ error: "already enabled" });
+  res.json(registrationOptions("OpenEveryAgent"));
+});
+app.post("/api/passkey/register-finish", (req, res) => {
+  const { credId, coseKey } = req.body || {};
+  if (!credId || !coseKey) return res.status(400).json({ error: "missing credential" });
+  const pk = (state.settings.passkey = state.settings.passkey || {});
+  finishRegistration(pk, credId, coseKey);
+  pk.enabled = true;
+  saveNow();
+  res.json({ ok: true, token: issueToken() });
+});
+app.post("/api/passkey/auth-begin", (req, res) => res.json(authOptions()));
+app.post("/api/passkey/auth-finish", (req, res) => {
+  const { credId, authData, clientData, signature } = req.body || {};
+  const token = verifyAssertion(state.settings.passkey || {}, String(credId || ""), String(authData || ""), String(clientData || ""), String(signature || ""));
+  if (!token) return res.status(401).json({ error: "verification failed" });
+  res.json({ ok: true, token });
+});
+app.delete("/api/passkey", (req, res) => {
+  const token = String(req.header("x-oea-token") || req.query.token || "");
+  if (state.settings.passkey?.enabled && !checkToken(token)) return res.status(401).json({ error: "locked" });
+  revokeToken(token);
+  state.settings.passkey = { enabled: false };
+  saveNow();
+  res.json({ ok: true });
+});
 
 app.get("/api/harness", async (req, res) => {
   const available = await opencodeAvailable();

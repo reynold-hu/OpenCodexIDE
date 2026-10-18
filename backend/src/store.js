@@ -20,6 +20,7 @@ const DEFAULT_STATE = {
     approvalMode: "auto",
     sounds: true,
     account: { name: "developer", email: "developer@local" },
+    passkey: { enabled: false },
   },
   projects: [],
   threads: [],

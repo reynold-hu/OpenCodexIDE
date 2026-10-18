@@ -62,6 +62,7 @@ export default function CodexShell() {
   const [branches, setBranches] = useState<{ name: string; current: boolean }[]>([]);
   const [queued, setQueued] = useState<string[]>([]);
   const [teamMode, setTeamMode] = useState(false);
+  const [dotFlight, setDotFlight] = useState<{ color: string } | null>(null);
   const conversationMode = (settings as any)?.conversationMode || "codex";
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
@@ -357,9 +358,11 @@ export default function CodexShell() {
 
   const newDot = useCallback(async () => {
     if (!project) return;
-    const color = DOT_VARIANTS[Math.floor(Math.random() * DOT_VARIANTS.length)];
+    const color = (settings as any)?.defaultDotColor || DOT_VARIANTS[Math.floor(Math.random() * DOT_VARIANTS.length)];
     const t = await api.createThread(project.id, "codex", { dot: { color, compact: false } } as any);
     setThreads((ts) => [t, ...ts]);
+    setDotFlight({ color });
+    setTimeout(() => setDotFlight(null), 1150);
     openThread(t);
     showToast(`新 dot 已创建 · ${color}`);
   }, [project, openThread]);
@@ -1038,6 +1041,11 @@ export default function CodexShell() {
         </div>
       )}
 
+      {dotFlight && (
+        <div className="dot-flight">
+          <Dot variant={dotFlight.color as any} size={30} state="jumping" ring />
+        </div>
+      )}
       <Buddy mode="codex" state={machine.state} level={machine.level} hidden={(settings as any).buddy === false} />
       {toast && <div className="toast">{toast}</div>}
     </div>

@@ -79,6 +79,12 @@ export function verifyAssertion(stored, credIdB64, authDataB64, clientDataB64, s
   return token;
 }
 
+export function issueToken() {
+  const token = crypto.randomBytes(24).toString("hex");
+  tokens.add(token);
+  return token;
+}
+
 export function checkToken(token) {
   return !!token && tokens.has(token);
 }

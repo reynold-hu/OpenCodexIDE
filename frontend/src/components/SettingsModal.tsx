@@ -2,6 +2,9 @@ import React, { useEffect, useState } from "react";
 import type { ApprovalMode, ModelInfo, ProviderInfo, Settings } from "../types";
 import { IconX, IconCheck } from "../icons";
 import { api } from "../api";
+import { registerPasskey, passkeySupported } from "../lib/webauthn";
+import { TOKEN_KEY } from "./LockScreen";
+import { Dot, DOT_VARIANTS } from "./Dot";
 
 export function SettingsModal({
   settings,
@@ -23,6 +26,11 @@ export function SettingsModal({
   const [keyDraft, setKeyDraft] = useState("");
   const [syncMsg, setSyncMsg] = useState("");
   const [harnessInfo, setHarnessInfo] = useState("检测中…");
+  const [pkEnabled, setPkEnabled] = useState(false);
+  const [pkMsg, setPkMsg] = useState("");
+  useEffect(() => {
+    fetch("/api/passkey/status").then((r) => r.json()).then((s) => setPkEnabled(!!s.enabled)).catch(() => {});
+  }, []);
   useEffect(() => {
     fetch("/api/harness").then((r) => r.json()).then((h) => {
       const ms = Object.entries(h.opencodeModels || {}).map(([k, v]) => `${k}:${(v as string[]).slice(0, 2).join("/")}`).join("  ");
@@ -164,6 +172,45 @@ export function SettingsModal({
               </div>
             </>
           )}
+          <div className="menu-label" style={{ padding: "14px 0 4px" }}>安全锁 · PASSKEY</div>
+          <div className="set-row">
+            <div className="sr-label">
+              <div className="sr-title">Touch ID 锁</div>
+              <div className="sr-desc">{pkEnabled ? "已启用 — 打开页面需验证" : "启用后访问 IDE 需要 Touch ID / 系统密码"}{pkMsg ? ` · ${pkMsg}` : ""}</div>
+            </div>
+            {pkEnabled ? (
+              <button className="btn" onClick={async () => {
+                const t = sessionStorage.getItem(TOKEN_KEY);
+                await fetch("/api/passkey", { method: "DELETE", headers: t ? { "x-oea-token": t } : {} });
+                setPkEnabled(false); setPkMsg("已关闭");
+              }}>关闭</button>
+            ) : (
+              <button className="btn primary" disabled={!passkeySupported()} onClick={async () => {
+                try {
+                  const { token } = await registerPasskey();
+                  sessionStorage.setItem(TOKEN_KEY, token);
+                  setPkEnabled(true); setPkMsg("已启用");
+                } catch (e: any) { setPkMsg(e?.message || "注册失败"); }
+              }}>{passkeySupported() ? "启用" : "不支持"}</button>
+            )}
+          </div>
+
+          <div className="menu-label" style={{ padding: "14px 0 4px" }}>DOT 角色预览</div>
+          <div className="set-row">
+            <div className="sr-label">
+              <div className="sr-title">新 dot 的默认形象</div>
+              <div className="sr-desc">7 种渐变角色;点击选中,创建 dot 时使用</div>
+            </div>
+            <div className="dot-preview-grid">
+              {DOT_VARIANTS.map((v) => (
+                <button key={v} className={`dpv ${((settings as any).defaultDotColor || "default") === v ? "on" : ""}`}
+                  onClick={() => { onChange({ defaultDotColor: v } as any); }}>
+                  <Dot variant={v} size={20} state="idle" />
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="menu-label" style={{ padding: "14px 0 4px" }}>GENERAL</div>
           <div className="set-row">
             <div className="sr-label">
