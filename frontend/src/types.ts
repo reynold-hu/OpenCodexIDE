@@ -30,6 +30,7 @@ export interface Settings {
   approvalMode: ApprovalMode;
   sounds: boolean;
   harness?: string;
+  conversationMode?: string;
   voice?: boolean;
   account: { name: string; email: string };
 }
@@ -69,6 +70,7 @@ export interface ThreadMeta {
   messageCount: number;
   pinned?: boolean;
   archived?: boolean;
+  dot?: { color?: string; compact?: boolean } | null;
   worktree?: { path: string; branch: string } | null;
   sideOf?: string;
   scheduled?: ScheduledTask[];

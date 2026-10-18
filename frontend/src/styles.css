@@ -1766,3 +1766,41 @@ pre.codeblock {
 @keyframes muWobble { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-4deg); } 75% { transform: rotate(4deg); } }
 
 .landing .mascot { filter: drop-shadow(0 8px 24px rgba(0,0,0,0.18)); }
+
+/* ---------- sidebar mode selector (ChatGPT / ChatGPT Work / Codex) ---------- */
+.mode-selector { display: flex; background: var(--elev); border: 1px solid var(--border); border-radius: 999px; padding: 2px; gap: 2px; }
+.mode-selector button { flex: 1; font-size: 11px; padding: 4px 6px; border-radius: 999px; color: var(--muted); white-space: nowrap; }
+.mode-selector button:hover { color: var(--text); }
+.mode-selector button.on { background: var(--text); color: var(--bg); font-weight: 600; }
+
+/* ---------- dots row ---------- */
+.dots-row { display: flex; align-items: center; gap: 6px; padding: 2px 2px; }
+.dots-label { font-size: 10.5px; color: var(--faint); letter-spacing: 1px; text-transform: uppercase; }
+.dots-list { display: flex; align-items: center; gap: 4px; flex: 1; overflow-x: auto; }
+.dot-btn { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid transparent; transition: transform .15s, border-color .15s; }
+.dot-btn:hover { transform: translateY(-2px); }
+.dot-btn.on { border-color: var(--border-strong); background: var(--sel); }
+.dot-add { width: 24px; height: 24px; border-radius: 50%; border: 1px dashed var(--border-strong); display: grid; place-items: center; color: var(--faint); flex: 0 0 auto; }
+.dot-add:hover { color: var(--text); border-style: solid; }
+
+/* ---------- dot orb motion (idle breathing / running pulse / jumping spring) ---------- */
+.dot3d { display: inline-grid; place-items: center; }
+.dot3d.st-idle svg { animation: dotBreathe 3.4s ease-in-out infinite; }
+.dot3d.st-sleeping { opacity: .55; }
+.dot3d.st-sleeping svg { animation: dotBreathe 5s ease-in-out infinite; }
+.dot3d.st-running svg { animation: dotRun 1.1s ease-in-out infinite; }
+.dot3d.st-jumping svg { animation: dotJump .6s cubic-bezier(.34,1.56,.64,1) infinite; }
+.dot3d.ring { filter: drop-shadow(0 0 18px rgba(255,156,44,.45)); }
+@keyframes dotBreathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+@keyframes dotRun { 0%,100% { transform: scale(1) rotate(0); } 45% { transform: scale(1.08) rotate(-6deg); } 70% { transform: scale(1.04) rotate(5deg); } }
+@keyframes dotJump { 0%,100% { transform: translateY(0) scale(1); } 40% { transform: translateY(-5px) scale(1.06); } 70% { transform: translateY(0) scale(.96); } }
+
+/* ---------- thread header dot + compact conversation ---------- */
+.mt-dot { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; }
+.mt-dot:hover { background: var(--hover); }
+.activity-line { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--faint); padding: 6px 2px; }
+.al-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); flex: 0 0 7px; }
+.dot-compact { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 40px 24px; position: relative; }
+.dc-glow { position: absolute; width: 300px; height: 300px; border-radius: 50%; background: radial-gradient(circle, rgba(255,156,44,.14), transparent 65%); pointer-events: none; }
+.dc-title { font-size: 16px; font-weight: 600; }
+.dc-last { max-width: 520px; text-align: center; font-size: 13.5px; line-height: 1.6; color: var(--muted); background: var(--elev); border: 1px solid var(--border); border-radius: 16px; padding: 12px 16px; }

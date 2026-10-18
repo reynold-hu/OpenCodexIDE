@@ -157,6 +157,7 @@ app.post("/api/threads", (req, res) => {
     id: uid("thr"),
     projectId,
     product: PRODUCT,
+    dot: req.body?.dot && typeof req.body.dot === "object" ? { color: String(req.body.dot.color || "default").slice(0, 12), compact: !!req.body.dot.compact } : undefined,
     title: req.body?.title || "",
     status: "idle",
     model: state.settings.model,
@@ -177,6 +178,7 @@ app.patch("/api/threads/:id", (req, res) => {
   if (req.body?.approvalMode) t.approvalMode = req.body.approvalMode;
   if (req.body?.pinned !== undefined) t.pinned = !!req.body.pinned;
   if (req.body?.archived !== undefined) t.archived = !!req.body.archived;
+  if (req.body?.dot !== undefined) t.dot = req.body.dot ? { ...(t.dot || {}), ...req.body.dot } : null;
   t.updatedAt = Date.now();
   save();
   res.json(t);

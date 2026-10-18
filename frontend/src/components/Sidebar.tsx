@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import type { Project, ThreadMeta } from "../types";
 import { IconPlus, IconSearch, IconGear, IconTrash, IconFolder, IconChevron } from "../icons";
+import { Dot, dotStateFrom } from "./Dot";
 
 function groupLabel(ts: number, now: number) {
   const d = new Date(ts);
@@ -27,6 +28,10 @@ export function Sidebar({
   onDeleteThread,
   onSettings,
   account,
+  mode,
+  onMode,
+  onNewDot,
+  running,
 }: {
   projects: Project[];
   currentProject: Project | undefined;
@@ -39,6 +44,10 @@ export function Sidebar({
   onDeleteThread: (id: string) => void;
   onSettings: () => void;
   account: { name: string; email: string };
+  mode: string;
+  onMode: (m: string) => void;
+  onNewDot: () => void;
+  running: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [projOpen, setProjOpen] = useState(false);
@@ -78,6 +87,24 @@ export function Sidebar({
           <button className="icon-btn" title="New chat" onClick={onNewChat}>
             <IconPlus size={15} />
           </button>
+        </div>
+        <div className="mode-selector">
+          {([["chatgpt", "ChatGPT"], ["chatgpt_work", "ChatGPT Work"], ["codex", "Codex"]] as const).map(([id, label]) => (
+            <button key={id} className={mode === id ? "on" : ""} onClick={() => onMode(id)} title={id === "codex" ? "Codex 模式:完整任务卡/命令/diff" : id === "chatgpt" ? "ChatGPT 模式:散文式对话,隐藏工具细节" : "ChatGPT Work:保留计划与产物,隐藏命令"}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="dots-row">
+          <span className="dots-label">Dots</span>
+          <div className="dots-list">
+            {threads.slice(0, 7).map((t) => (
+              <button key={t.id} className={`dot-btn ${t.id === currentThreadId ? "on" : ""}`} title={t.title || "dot"} onClick={() => onThread(t)}>
+                <Dot variant={((t.dot?.color as any) || "default")} size={20} state={dotStateFrom(t, t.status === "running" || running && t.id === currentThreadId, false)} />
+              </button>
+            ))}
+            <button className="dot-add" title="新建 dot(带个性头像的 agent 会话)" onClick={onNewDot}><IconPlus size={12} /></button>
+          </div>
         </div>
         <button className="new-chat" onClick={onNewChat}>
           <IconPlus size={14} /> New chat

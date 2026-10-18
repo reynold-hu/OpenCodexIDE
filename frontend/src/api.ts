@@ -16,7 +16,7 @@ export const api = {
   deleteProject: (id: string) => fetch(`/api/projects/${id}`, { method: "DELETE" }).then(j<{ ok: boolean }>),
   threads: (projectId?: string, product?: string) => fetch(`/api/threads?${projectId ? `projectId=${projectId}&` : ""}${product ? `product=${product}` : ""}`).then(j<ThreadMeta[]>),
   thread: (id: string) => fetch(`/api/threads/${id}`).then(j<ThreadFull>),
-  createThread: (projectId: string, product?: string) => fetch("/api/threads", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId, product }) }).then(j<ThreadMeta>),
+  createThread: (projectId: string, product?: string, extra?: Record<string, unknown>) => fetch("/api/threads", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId, product, ...(extra || {}) }) }).then(j<ThreadMeta>),
   updateThread: (id: string, patch: Partial<ThreadMeta>) => fetch(`/api/threads/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) }).then(j<ThreadMeta>),
   deleteThread: (id: string) => fetch(`/api/threads/${id}`, { method: "DELETE" }).then(j<{ ok: boolean }>),
   sideChat: (id: string) => fetch(`/api/threads/${id}/side`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }).then(j<ThreadMeta>),

@@ -8,6 +8,7 @@ import { Mascot } from "../components/Mascot";
 import { useMascotMachine } from "../lib/mascotState";
 import { Buddy } from "../components/Buddy";
 import { AgentRoster } from "../components/AgentRoster";
+import { Dot, DOT_VARIANTS, dotStateFrom } from "../components/Dot";
 import { Composer } from "../components/Composer";
 import { BlockView } from "../components/Blocks";
 import { SidePanel } from "../components/SidePanel";
@@ -61,6 +62,7 @@ export default function CodexShell() {
   const [branches, setBranches] = useState<{ name: string; current: boolean }[]>([]);
   const [queued, setQueued] = useState<string[]>([]);
   const [teamMode, setTeamMode] = useState(false);
+  const conversationMode = (settings as any)?.conversationMode || "codex";
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [findQ, setFindQ] = useState("");
@@ -353,6 +355,31 @@ export default function CodexShell() {
     document.getElementById(`blk-${idx}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
+  const newDot = useCallback(async () => {
+    if (!project) return;
+    const color = DOT_VARIANTS[Math.floor(Math.random() * DOT_VARIANTS.length)];
+    const t = await api.createThread(project.id, "codex", { dot: { color, compact: false } } as any);
+    setThreads((ts) => [t, ...ts]);
+    openThread(t);
+    showToast(`新 dot 已创建 · ${color}`);
+  }, [project, openThread]);
+
+  const cycleDotColor = useCallback(async () => {
+    if (!thread) return;
+    const cur = thread.dot?.color || "default";
+    const next = DOT_VARIANTS[(DOT_VARIANTS.indexOf(cur as any) + 1) % DOT_VARIANTS.length];
+    const upd = await api.updateThread(thread.id, { dot: { color: next } } as any);
+    setThread({ ...thread, dot: { ...(thread.dot || {}), color: next } });
+    setThreads((ts) => ts.map((x) => (x.id === upd.id ? { ...x, dot: { ...(x.dot || {}), color: next } } : x)));
+  }, [thread]);
+
+  const toggleCompact = useCallback(async () => {
+    if (!thread) return;
+    const compact = !thread.dot?.compact;
+    await api.updateThread(thread.id, { dot: { ...(thread.dot || {}), color: thread.dot?.color || "default", compact } } as any);
+    setThread({ ...thread, dot: { ...(thread.dot || { color: "default" }), compact } });
+  }, [thread]);
+
   const newChat = useCallback(() => {
     esRef.current?.close();
     setThread(null);
@@ -631,6 +658,10 @@ export default function CodexShell() {
           onDeleteThread={deleteThread}
           onSettings={() => setSettingsOpen(true)}
           account={settings.account}
+          mode={conversationMode}
+          onMode={(m) => saveSettings({ conversationMode: m } as any)}
+          onNewDot={newDot}
+          running={running}
         />
 
         <main className="main">
@@ -687,7 +718,17 @@ export default function CodexShell() {
             <button className="icon-btn" title="New chat" onClick={newChat}>
               <IconPlus size={14} />
             </button>
+            {thread && (
+              <button className="mt-dot" title={`dot 颜色:${thread.dot?.color || "default"} · 点击换色`} onClick={cycleDotColor}>
+                <Dot variant={(thread.dot?.color as any) || "default"} size={18} state={dotStateFrom({ ...thread, status: running ? "running" : thread.status }, running, awaitingApproval)} />
+              </button>
+            )}
             <span className="mt-title">{thread?.title || "New chat"}</span>
+            {thread && (
+              <button className="mt-badge" style={{ cursor: "pointer" }} onClick={toggleCompact} title="Compact = 紧凑 dot 会话;再次点击回到完整 transcript">
+                {thread.dot?.compact ? "Detailed" : "Compact"}
+              </button>
+            )}
             {thread?.pinned && <span className="mt-badge mt-badge-icon"><IconPin size={11} /> 置顶</span>}
             {thread?.worktree && (
               <span className="mt-badge wt-chip" title={thread.worktree.path}>
@@ -828,11 +869,33 @@ export default function CodexShell() {
                 </div>
               )}
               <div className="thread-scroll" ref={scrollRef} onScroll={onScroll} onMouseUp={onMouseUpThread}>
+                {thread?.dot?.compact ? (
+                  <div className="dot-compact">
+                    <div className="dc-glow" />
+                    <Dot variant={(thread.dot?.color as any) || "default"} size={96} state={dotStateFrom({ ...thread, status: running ? "running" : thread.status }, running, awaitingApproval)} ring />
+                    <div className="dc-title">{thread.title || "New dot"}</div>
+                    <div className="dc-last">
+                      {(() => { const last = [...blocks].reverse().find((b) => b.kind === "agent_message") as any; return last?.text ? String(last.text).slice(0, 240) : running ? "正在思考…" : "还没有消息 — 在下方输入开始对话"; })()}
+                    </div>
+                    <button className="btn" onClick={toggleCompact}>展开完整 transcript</button>
+                  </div>
+                ) : (
                 <div className="thread-inner" data-find={findQ || undefined}>
-                  {grouped.map((b, i) => (
-                    <div key={i} id={`blk-${i}`} className="block-enter">
+                  {(() => {
+                    const visible = (b: any) => conversationMode === "codex" ? true
+                      : conversationMode === "chatgpt_work" ? !["command", "process", "cloud_pc"].includes(b.kind)
+                      : ["prompt", "agent_message", "error", "annotation"].includes(b.kind);
+                    const arr: any[] = [];
+                    let hidden = 0;
+                    grouped.forEach((b, i) => {
+                      if (visible(b)) { if (hidden) { arr.push(<div key={`h${i}`} className="activity-line"><span className="al-dot" /> 已折叠 {hidden} 步活动 · 切换到 Codex 模式查看命令与 diff</div>); hidden = 0; } arr.push({ b, i }); }
+                      else hidden++;
+                    });
+                    if (hidden) arr.push(<div key="h-end" className="activity-line"><span className="al-dot" /> 已折叠 {hidden} 步活动 · 切换到 Codex 模式查看命令与 diff</div>);
+                    return arr.map((item: any) => item.b ? (
+                    <div key={item.i} id={`blk-${item.i}`} className="block-enter">
                       <BlockView
-                        block={b}
+                        block={item.b}
                         onApprove={approve}
                         onUndoFiles={undoFiles}
                         onViewChanges={() => { setPanelOpen(true); }}
@@ -844,11 +907,12 @@ export default function CodexShell() {
                         projectId={project?.id}
                         onRevise={reviseTurn}
                         onRestore={restoreCheckpoint}
-                        diffPreview={(b as any).approvalId ? approvalDiffs.current[(b as any).approvalId] : undefined}
-                        blockIndex={i}
+                        diffPreview={(item.b as any).approvalId ? approvalDiffs.current[(item.b as any).approvalId] : undefined}
+                        blockIndex={item.i}
                       />
                     </div>
-                  ))}
+                    ) : item);
+                  })()}
                   {running && blocks[blocks.length - 1]?.kind !== "agent_message" && (
                     <div className="thinking-row">
                       <Mascot mode="codex" state="working" size={22} />
@@ -856,6 +920,7 @@ export default function CodexShell() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
               {!atBottom && (
                 <button className="scroll-bottom" onClick={jumpBottom} title="回到底部">
