@@ -55,6 +55,7 @@ export default function CodexShell() {
   const [railView, setRailView] = useState<RailView | "chat">("chat");
   const [allThreads, setAllThreads] = useState<ThreadMeta[]>([]);
   const [atBottom, setAtBottom] = useState(true);
+  const [lastUsage, setLastUsage] = useState<{ input_tokens?: number; output_tokens?: number; cost?: number } | null>(null);
   const [branches, setBranches] = useState<{ name: string; current: boolean }[]>([]);
   const [queued, setQueued] = useState<string[]>([]);
   const [teamMode, setTeamMode] = useState(false);
@@ -235,6 +236,7 @@ export default function CodexShell() {
       case "turn_complete":
         setRunning(false);
         setRefreshToken((r) => r + 1);
+        if (ev.usage && (ev.usage.input_tokens || ev.usage.output_tokens)) setLastUsage(ev.usage);
         if (settings?.sounds) playChime();
         if (settings?.voice) {
           const last = [...blocksRef.current].reverse().find((b: any) => b.kind === "agent_message") as any;
@@ -572,7 +574,7 @@ export default function CodexShell() {
   const modelForThread = (thread?.model || settings.model)!;
   const modeForThread = (thread?.approvalMode || settings.approvalMode)!;
   const grouped = groupBlocks(blocks);
-  const approxTokens = Math.round(blocks.reduce((sum: number, b: any) => sum + (b.kind === "prompt" || b.kind === "agent_message" ? String(b.text || "").length : 0), 0) / 3);
+  const approxTokens = lastUsage ? (lastUsage.input_tokens || 0) + (lastUsage.output_tokens || 0) : Math.round(blocks.reduce((sum: number, b: any) => sum + (b.kind === "prompt" || b.kind === "agent_message" ? String(b.text || "").length : 0), 0) / 3);
   const childChats = thread ? threads.filter((t) => t.sideOf === thread.id) : [];
 
   return (
@@ -889,7 +891,7 @@ export default function CodexShell() {
                   />
                   <div className="composer-hint">
                     <span>OpenEveryAgent can make mistakes. Check important info. · ⌘K commands · ⌘S side chat</span>
-                    {approxTokens > 0 && <span className="usage-chip" title="上下文估算 token(/compact 可压缩)">≈{(approxTokens / 1000).toFixed(1)}k tok</span>}
+                    {approxTokens > 0 && <span className="usage-chip" title={lastUsage ? "opencode 真实用量" : "上下文估算 token(/compact 可压缩)"}>{lastUsage ? "" : "≈"}{(approxTokens / 1000).toFixed(1)}k tok{lastUsage?.cost ? ` · $${lastUsage.cost.toFixed(4)}` : ""}</span>}
                   </div>
                 </div>
               </div>

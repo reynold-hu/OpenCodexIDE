@@ -894,8 +894,14 @@ export async function runTurn(state, thread, prompt, req_agents) {  const provid
     }
     if (state.settings.harness === "opencode" && thread.product !== "grok") {
       activeTurns.set(thread.id, { aborted: false, child: null, llmAbort: null, oc: { dir, sid: thread.ocSession } });
+      const checkpoint = await gitCheckpoint(dir, `ocx-checkpoint ${thread.id} ${Date.now()}`);
       const amText = new Map();
       const pushEv = (ev) => {
+        if (ev.type === "steer") {
+          thread.events.push({ type: "turn_started", prompt: ev.prompt, ts: Date.now() });
+          bus.broadcast(thread.id, ev);
+          return;
+        }
         if (ev.type === "agent_message") {
           const e = { type: "agent_message", id: ev.id, content: "", done: false, ts: Date.now() };
           thread.events.push(e);
@@ -923,9 +929,11 @@ export async function runTurn(state, thread, prompt, req_agents) {  const provid
       await runOpencodeTurn({
         dir,
         providerID: provider.id,
-        modelID: provider.model || state.settings.model,
+        modelID: thread.model || provider.model || state.settings.model,
         prompt: await expandMentions(dir, prompt),
         threadId: thread.id,
+        checkpoint,
+        getSteers: () => drainSteer(thread.id),
         onEvent: pushEv,
         getThread: () => thread,
         setThread: (patch) => Object.assign(thread, patch),

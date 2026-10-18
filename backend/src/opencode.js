@@ -1,4 +1,14 @@
 import { spawn } from "node:child_process";
+
+const RISK_RULES = [
+  { level: "destructive", label: "高危", re: /\b(rm\s+-rf|rm\s+-fr|sudo|mkfs|dd\s+if=|:\(\)\{|chmod\s+777|git\s+push\s+--force|drop\s+table)/i },
+  { level: "network", label: "联网", re: /\b(curl|wget|nc|ssh|scp|npm\s+(publish|install)|pip\s+install|git\s+(clone|fetch|pull|push))\b/i },
+  { level: "write", label: "写入", re: /(^|[^>])>>?\s|\b(mv|cp|tee|touch|mkdir|rmdir|sed\s+-i|git\s+(add|commit|checkout|reset|merge))/i },
+];
+function classifyCommandFn(cmd) {
+  for (const r of RISK_RULES) if (r.re.test(cmd)) return { level: r.level, label: r.label };
+  return { level: "read", label: "只读" };
+}
 import crypto from "node:crypto";
 
 const servers = new Map(); // dir -> { base, port, proc }
@@ -68,7 +78,7 @@ export async function refreshModelCache(dir) {
   return Object.fromEntries(modelCache);
 }
 
-export async function runOpencodeTurn({ dir, providerID, modelID, prompt, threadId, sessionKey, onEvent, getThread, setThread }) {
+export async function runOpencodeTurn({ dir, providerID, modelID, prompt, threadId, checkpoint, getSteers, onEvent, getThread, setThread }) {
   const server = await serverFor(dir);
   const emit = (ev) => onEvent({ ...ev, ts: Date.now() });
 
@@ -85,6 +95,9 @@ export async function runOpencodeTurn({ dir, providerID, modelID, prompt, thread
   let buf = "";
   const textParts = new Map(); // partId -> {sent, done, id}
   const msgRoles = new Map(); // messageID -> role
+  const planIds = new Map(); // sessionID -> our plan id
+  const sourceSeen = new Set();
+  const usage = { input_tokens: 0, output_tokens: 0, cost: 0 };
   const toolParts = new Map(); // callID -> our command id
   let settled = false;
 
@@ -100,7 +113,7 @@ export async function runOpencodeTurn({ dir, providerID, modelID, prompt, thread
     const model = await pickModel(providerID, modelID);
     if (!model) throw new Error(`provider "${providerID}" not configured in opencode`);
 
-    emit({ type: "turn_started", prompt });
+    emit({ type: "turn_started", prompt, checkpoint: checkpoint || null });
 
     const msgP = fetch(`${server.base}/session/${sid}/message`, {
       method: "POST",
@@ -126,6 +139,18 @@ export async function runOpencodeTurn({ dir, providerID, modelID, prompt, thread
           if (ev.type === "message.updated") {
             const info = props.info || {};
             if (info.id && info.role) msgRoles.set(info.id, info.role);
+            if (info.role === "assistant" && info.tokens) {
+              usage.input_tokens += info.tokens.input || 0;
+              usage.output_tokens += info.tokens.output || 0;
+              usage.cost += info.cost || 0;
+            }
+            // steer: when assistant message completes, drain queued steers into the session
+            if (info.role === "assistant" && info.time?.completed && getSteers) {
+              for (const st of getSteers()) {
+                emit({ type: "steer", prompt: st });
+                fetch(`${server.base}/session/${sid}/message`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ parts: [{ type: "text", text: `[追加指令] ${st}` }], model: { providerID, modelID: model } }) }).catch(() => {});
+              }
+            }
           } else if (ev.type === "message.part.updated") {
             const part = props.part || {};
             if (part.type === "text" && part.messageID && msgRoles.get(part.messageID) !== "user") {
@@ -146,24 +171,55 @@ export async function runOpencodeTurn({ dir, providerID, modelID, prompt, thread
               textParts.set(key, cur);
             } else if (part.type === "tool") {
               const callId = part.callID || part.id;
+              const st = part.state || {};
+              const inp = st.input || {};
+
+              if (part.tool === "todowrite") {
+                const items = (inp.todos || []).map((td) => ({ title: String(td.content || "").slice(0, 120), done: td.status === "completed" }));
+                if (items.length) {
+                  let pid = planIds.get(sid);
+                  if (!pid) { pid = `plan_${crypto.randomBytes(4).toString("hex")}`; planIds.set(sid, pid); emit({ type: "plan", id: pid, items }); }
+                  else emit({ type: "plan_update", id: pid, items });
+                }
+                continue;
+              }
+              if (part.tool === "task") {
+                const tid = `sub_${callId}`;
+                if (st.status === "pending" || st.status === "running") emit({ type: "subagent", id: tid, prompt: String(inp.description || "子任务").slice(0, 200), done: false });
+                else if (st.status === "completed") emit({ type: "subagent_update", id: tid, done: true });
+                continue;
+              }
+              if (part.tool === "webfetch" || part.tool === "websearch") {
+                if (st.status === "running" && !sourceSeen.has(callId)) {
+                  sourceSeen.add(callId);
+                  const url = String(inp.url || "").slice(0, 300);
+                  if (url) emit({ type: "source", url, title: String(inp.title || "").slice(0, 120) });
+                }
+                continue;
+              }
+
               const ourId = toolParts.get(callId) || `cmd_${crypto.randomBytes(5).toString("hex")}`;
               toolParts.set(callId, ourId);
-              const st = part.state || {};
-              const cmd = st.input?.command || st.input?.filePath || part.tool;
+              const cmd = inp.command || inp.filePath || part.tool;
               if (st.status === "pending") {
-                emit({ type: "command", id: ourId, cmd: String(cmd || part.tool), status: "running" });
+                const risk = part.tool === "bash" ? classifyCommandFn(String(cmd || "")) : undefined;
+                emit({ type: "command", id: ourId, cmd: String(cmd || part.tool), status: "running", risk });
               } else if (st.status === "completed") {
                 const output = String(st.output || st.metadata?.output || "").slice(0, 20000);
                 emit({ type: "command_result", id: ourId, code: 0, output, durationMs: st.time ? (st.time.end - st.time.start) / 1000 : undefined, status: "success" });
-                if ((part.tool === "edit" || part.tool === "write") && st.input?.filePath) {
-                  emit({ type: "file_change", path: String(st.input.filePath).replace(dir + "/", ""), additions: 0, deletions: 0, patch: String(st.metadata?.diff || st.input?.content || "").slice(0, 30000) });
+                if ((part.tool === "edit" || part.tool === "write") && inp.filePath) {
+                  const rel = String(inp.filePath).replace(dir + "/", "");
+                  const diff = String(st.metadata?.diff || "");
+                  const additions = (diff.match(/^\+/gm) || []).length || (part.tool === "write" ? String(inp.content || "").split("\n").length : 0);
+                  const deletions = (diff.match(/^-/gm) || []).length;
+                  emit({ type: "file_change", path: rel, additions, deletions, patch: (diff || `new file ${rel}\n` + String(inp.content || "").split("\n").map((l) => "+" + l).join("\n")).slice(0, 30000) });
                 }
               } else if (st.status === "error") {
                 emit({ type: "command_result", id: ourId, code: 1, output: String(st.error || st.metadata?.output || "error").slice(0, 8000), status: "failed" });
               }
             }
           } else if (ev.type === "session.idle") {
-            finish("turn_complete", {});
+            finish("turn_complete", { usage });
           } else if (ev.type === "session.error") {
             finish("turn_error", { message: String(props.error?.data?.message || props.error?.name || "opencode error") });
           }
@@ -171,7 +227,19 @@ export async function runOpencodeTurn({ dir, providerID, modelID, prompt, thread
       }
     })();
 
-    const mr = await msgP;
+    let mr = await msgP;
+    if (!mr.ok && mr.status === 404) {
+      // server restarted / session lost → recreate once and resend
+      const sr = await fetch(`${server.base}/session`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: `oea-${threadId}` }) }).then((x) => x.json()).catch(() => null);
+      if (sr?.id) {
+        sid = sr.id;
+        if (setThread) setThread({ ocSession: sid });
+        mr = await fetch(`${server.base}/session/${sid}/message`, {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ parts: [{ type: "text", text: prompt }], model: { providerID, modelID: model } }),
+        });
+      }
+    }
     if (!mr.ok) {
       const txt = await mr.text().catch(() => "");
       finish("turn_error", { message: `opencode message failed: ${txt.slice(0, 200)}` });

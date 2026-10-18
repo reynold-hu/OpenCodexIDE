@@ -233,7 +233,12 @@ export default function MuseShell() {
             <div className="modal-body">
               <div className="set-row"><div className="sr-label"><div className="sr-title">Theme</div></div>
                 <div className="segmented">{(["light", "dark"] as const).map((t) => <button key={t} className={settings.theme === t ? "on" : ""} onClick={async () => setSettings(await api.saveSettings({ theme: t } as any))}>{t}</button>)}</div></div>
-              <div className="set-row"><div className="sr-label"><div className="sr-title">Notification sounds</div></div>
+                            <div className="set-row"><div className="sr-label"><div className="sr-title">Agent harness</div><div className="sr-desc">opencode serve = 真实 agent 引擎(自动拉起 headless server)</div></div>
+                <div className="segmented">
+                  <button className={(settings as any).harness !== "opencode" ? "on" : ""} onClick={async () => setSettings(await api.saveSettings({ harness: "builtin" } as any))}>内置</button>
+                  <button className={(settings as any).harness === "opencode" ? "on" : ""} onClick={async () => setSettings(await api.saveSettings({ harness: "opencode" } as any))}>opencode</button>
+                </div></div>
+<div className="set-row"><div className="sr-label"><div className="sr-title">Notification sounds</div></div>
                 <button className={`switch ${settings.sounds ? "on" : ""}`} onClick={async () => setSettings(await api.saveSettings({ sounds: !settings.sounds } as any))} /></div>
               <div className="set-row"><div className="sr-label"><div className="sr-title">Provider</div><div className="sr-desc">{settings.provider} · key 在 state.json 或 Codex 产品配置</div></div></div>
             </div>

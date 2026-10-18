@@ -295,7 +295,12 @@ export default function ClaudeShell() {
                 <select className="select-like" value={settings.model} onChange={async (e) => setSettings(await api.saveSettings({ model: e.target.value } as any))}>{models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
               <div className="set-row"><div className="sr-label"><div className="sr-title">Provider</div><div className="sr-desc">任意 OpenAI-compatible 后端;key 在 Codex 产品或 state.json 配置</div></div>
                 <select className="select-like" value={settings.provider} onChange={async (e) => setSettings(await api.saveSettings({ provider: e.target.value } as any))}>{providers.map((p: any) => <option key={p.id} value={p.id}>{p.label}{p.hasKey ? "" : " · 无key"}{p.id === settings.provider && !p.hasKey && p.id !== "simulated" ? " ⚠" : ""}</option>)}</select></div>
-              <div className="set-row"><div className="sr-label"><div className="sr-title">Notification sounds</div></div>
+                            <div className="set-row"><div className="sr-label"><div className="sr-title">Agent harness</div><div className="sr-desc">opencode serve = 真实 agent 引擎(自动拉起 headless server)</div></div>
+                <div className="segmented">
+                  <button className={(settings as any).harness !== "opencode" ? "on" : ""} onClick={async () => setSettings(await api.saveSettings({ harness: "builtin" } as any))}>内置</button>
+                  <button className={(settings as any).harness === "opencode" ? "on" : ""} onClick={async () => setSettings(await api.saveSettings({ harness: "opencode" } as any))}>opencode</button>
+                </div></div>
+<div className="set-row"><div className="sr-label"><div className="sr-title">Notification sounds</div></div>
                 <button className={`switch ${settings.sounds ? "on" : ""}`} onClick={async () => setSettings(await api.saveSettings({ sounds: !settings.sounds } as any))} /></div>
             </div>
           </div>
