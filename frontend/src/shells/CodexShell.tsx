@@ -18,7 +18,7 @@ import { CommandPalette } from "../components/CommandPalette";
 import { NavRail, type RailView } from "../components/NavRail";
 import { ThreadMenu } from "../components/ThreadMenu";
 import { SummaryPanel } from "../components/SummaryPanel";
-import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft, IconBranch, IconLink, IconChevron, IconPencil, IconTrash, IconFile, IconFolder, IconGear } from "../icons";
+import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft, IconBranch, IconLink, IconChevron, IconPencil, IconTrash, IconFile, IconFolder, IconGear, IconShare, IconExternal, IconList, IconLayers } from "../icons";
 import { apiFetch } from "../api";
 
 
@@ -60,6 +60,7 @@ export default function CodexShell() {
   const [queued, setQueued] = useState<string[]>([]);
   const [dotFlight, setDotFlight] = useState<{ color: string } | null>(null);
   const [callOpen, setCallOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const conversationMode = (settings as any)?.conversationMode || "codex";
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
@@ -559,6 +560,18 @@ export default function CodexShell() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPaletteOpen((v) => !v);
+      } else if (e.altKey && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "r") {
+        e.preventDefault();
+        if (thread) { const v = prompt("重命名对话：", thread.title); if (v) patchThread({ title: v }); }
+      } else if (e.altKey && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        if (thread) patchThread({ pinned: !thread.pinned });
+      } else if (e.altKey && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (thread) openSideChat();
+      } else if (e.shiftKey && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        if (thread) doArchive();
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
         newChat();
@@ -604,6 +617,41 @@ export default function CodexShell() {
     [newChat, openSideChat, summaryOpen, settings, saveSettings, panelOpen, createProject]
   );
 
+  const doShareLink = useCallback(() => {
+    if (!thread) return;
+    navigator.clipboard.writeText(`${location.origin}${location.pathname}?thread=${thread.id}`);
+    showToast("分享链接已复制");
+    setShareOpen(false);
+  }, [thread, showToast]);
+  const doCopyTranscript = useCallback(() => {
+    navigator.clipboard.writeText(blocks.filter((b) => b.kind === "prompt" || b.kind === "agent_message").map((b: any) => (b.kind === "prompt" ? `> ${b.text}` : b.text)).join("\n\n"));
+    showToast("对话已复制");
+    setShareOpen(false);
+  }, [blocks, showToast]);
+  const doExportMd = useCallback(() => {
+    if (!thread) return;
+    const md = blocks.map((b: any) => b.kind === "prompt" ? `## ${b.text}\n` : b.kind === "agent_message" ? `${b.text}\n\n---\n` : "").filter(Boolean).join("\n");
+    const blob = new Blob([`# ${thread.title || "chat"}\n\n${md}`], { type: "text/markdown" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(thread.title || "chat").replace(/[^\w\u4e00-\u9fff-]/g, "_")}.md`;
+    a.click();
+    showToast("已导出 Markdown");
+    setShareOpen(false);
+  }, [thread, blocks, showToast]);
+  const doPrint = useCallback(() => { setShareOpen(false); setTimeout(() => window.print(), 50); }, []);
+  const doOpenWindow = useCallback(() => {
+    if (!thread) return;
+    window.open(`${location.origin}${location.pathname}?thread=${thread.id}&detached=1`, "_blank");
+    setShareOpen(false);
+  }, [thread]);
+  const doArchive = useCallback(async () => {
+    if (!thread) return;
+    const wasArchived = thread.archived;
+    await patchThread({ archived: !wasArchived });
+    if (!wasArchived) newChat();
+  }, [thread, patchThread, newChat]);
+
   const awaitingApprovalPre = blocks.some((b) => b.kind === "command" && (b as any).status === "awaiting_approval");
   const [totalTokens, setTotalTokens] = useState(0);
   const machine = useMascotMachine({ hasThread: !!thread || blocks.length > 0, running, awaitingApproval: awaitingApprovalPre, tokenCount: totalTokens });
@@ -633,10 +681,6 @@ export default function CodexShell() {
           {thread?.title || (railView !== "chat" ? railView : "Open Every Agent IDE")}
           {running ? " — running…" : ""}
         </div>
-
-        <button className="icon-btn" title="摘要面板" onClick={() => setSummaryOpen(!summaryOpen)} style={summaryOpen ? { color: "var(--text)", background: "var(--sel)" } : undefined}>
-          <IconSummary size={14} />
-        </button>
         <button className="icon-btn" title="Side panel" onClick={() => setPanelOpen(!panelOpen)} style={panelOpen ? { color: "var(--text)" } : undefined}>
           <IconPanel size={14} style={{ transform: "scaleX(-1)" }} />
         </button>
@@ -712,106 +756,105 @@ export default function CodexShell() {
         <main className="main">
           <div className="main-top">
             {thread && (
-              <ThreadMenu
-                thread={thread}
-                onRename={async () => {
-                  const v = prompt("重命名对话：", thread.title);
-                  if (v) patchThread({ title: v });
-                }}
-                onPin={() => patchThread({ pinned: !thread.pinned })}
-                onSideChat={openSideChat}
-                onContinue={() => send("继续上次未完成的工作。")}
-                onFork={openFork}
-                onWorktree={async () => {
-                  if (!thread || thread.worktree) return;
-                  await api.attachWorktree(thread.id);
-                  const full = await api.thread(thread.id);
-                  setThread(full);
-                  showToast("已创建独立工作树,本轮起所有变更互不影响主线");
-                }}
-                onRetry={async () => {
-                  if (!thread) return;
-                  await api.retry(thread.id);
-                  setRunning(true);
-                }}
-                onSchedule={addSchedule}
-                onShare={() => {
-                  navigator.clipboard.writeText(`${location.origin}${location.pathname}?thread=${thread.id}`);
-                  showToast("分享链接已复制");
-                }}
-                onCopyTranscript={() => {
-                  navigator.clipboard.writeText(blocks.filter((b) => b.kind === "prompt" || b.kind === "agent_message").map((b: any) => (b.kind === "prompt" ? `> ${b.text}` : b.text)).join("\n\n"));
-                  showToast("对话已复制");
-                }}
-                onOpenWindow={() => window.open(`${location.origin}${location.pathname}?thread=${thread.id}&detached=1`, "_blank")}
-                onPrint={() => { window.print(); }}
-                onExport={() => {
-                  const md = blocks.map((b: any) => b.kind === "prompt" ? `## ${b.text}\n` : b.kind === "agent_message" ? `${b.text}\n\n---\n` : "").filter(Boolean).join("\n");
-                  const blob = new Blob([`# ${thread.title || "chat"}\n\n${md}`], { type: "text/markdown" });
-                  const a = document.createElement("a");
-                  a.href = URL.createObjectURL(blob);
-                  a.download = `${(thread.title || "chat").replace(/[^\w\u4e00-\u9fff-]/g, "_")}.md`;
-                  a.click();
-                  showToast("已导出 Markdown");
-                }}
-                onArchive={async () => {
-                  await patchThread({ archived: !thread.archived });
-                  if (!thread.archived) newChat();
-                }}
-              />
-            )}
-            <button className="icon-btn" title="New chat" onClick={newChat}>
-              <IconPlus size={14} />
-            </button>
-            {thread && (
               <button className="mt-dot" title={`dot 颜色:${thread.dot?.color || "default"} · 点击换色`} onClick={cycleDotColor}>
                 <Dot variant={(thread.dot?.color as any) || "default"} size={18} state={dotStateFrom({ ...thread, status: running ? "running" : thread.status }, running, awaitingApproval)} />
               </button>
             )}
             <span className="mt-title">{thread?.title || "New chat"}</span>
-            {thread && (
-              <button className="mt-badge" style={{ cursor: "pointer" }} onClick={() => setCallOpen(true)} title="与 dot 语音通话(本地 Web Speech 模拟)">通话</button>
-            )}
-            {thread && (
-              <button className="mt-badge" style={{ cursor: "pointer" }} onClick={toggleCompact} title="Compact = 紧凑 dot 会话;再次点击回到完整 transcript">
-                {thread.dot?.compact ? "Detailed" : "Compact"}
+            <span className="mt-status">
+              {thread?.pinned && <span className="mt-badge mt-badge-icon"><IconPin size={11} /> 置顶</span>}
+              {thread && <button className="mt-badge" style={{ cursor: "pointer" }} onClick={() => setCallOpen(true)} title="与 dot 语音通话(本地 Web Speech 模拟)">通话</button>}
+              {thread && (
+                <button className="mt-badge" style={{ cursor: "pointer" }} onClick={toggleCompact} title="Compact = 紧凑 dot 会话">
+                  {thread.dot?.compact ? "Detailed" : "Compact"}
+                </button>
+              )}
+              {thread?.worktree && (
+                <span className="mt-badge wt-chip" title={thread.worktree.path}>
+                  <IconBranch size={11} /> {thread.worktree.branch.replace(/^oc\//, "")}
+                  <button className="wt-merge" onClick={async () => {
+                    const r = await api.mergeWorktree(thread.id);
+                    showToast(r.ok ? "工作树变更已合并回主线" : `合并失败: ${r.error}`);
+                  }}>合并</button>
+                  <button className="wt-detach" onClick={async () => {
+                    await api.detachWorktree(thread.id);
+                    setThread({ ...thread, worktree: null });
+                  }}>✕</button>
+                </span>
+              )}
+              {branches.length > 0 && (
+                <select
+                  className="mt-badge"
+                  style={{ cursor: "pointer" }}
+                  value={branches.find((b) => b.current)?.name || ""}
+                  onChange={async (e) => {
+                    if (!project) return;
+                    try {
+                      await api.checkout(project.id, e.target.value);
+                      setBranches((bs) => bs.map((b) => ({ ...b, current: b.name === e.target.value })));
+                      setRefreshToken((r) => r + 1);
+                    } catch (err: any) { showToast(`切换失败: ${err?.message}`); }
+                  }}
+                >
+                  {branches.map((b) => <option key={b.name} value={b.name}>{b.name}</option>)}
+                </select>
+              )}
+              <span className="mt-badge">{models.find((m) => m.id === modelForThread)?.name || modelForThread}</span>
+              {(settings.harness as any) === "opencode" && <span className="mt-badge mt-badge-icon" style={{ color: "var(--green)" }}>⚙ opencode harness</span>}
+              {modeForThread !== "auto" && <span className="mt-badge" style={{ color: "var(--accent-strong)" }}><IconAlert size={11} /> {modeForThread}</span>}
+              {(thread?.scheduled?.length ?? 0) > 0 && <span className="mt-badge mt-badge-icon"><IconClock size={11} /> {thread!.scheduled!.length}</span>}
+            </span>
+            <span style={{ flex: 1 }} />
+            <div className="thread-actions">
+              <button className={`ta-btn ${shareOpen ? "on" : ""}`} title="分享" onClick={() => setShareOpen(!shareOpen)}>
+                <IconShare size={14} /><span className="ta-label">分享</span>
               </button>
-            )}
-            {thread?.pinned && <span className="mt-badge mt-badge-icon"><IconPin size={11} /> 置顶</span>}
-            {thread?.worktree && (
-              <span className="mt-badge wt-chip" title={thread.worktree.path}>
-                <IconBranch size={11} /> {thread.worktree.branch.replace(/^oc\//, "")}
-                <button className="wt-merge" onClick={async () => {
-                  const r = await api.mergeWorktree(thread.id);
-                  showToast(r.ok ? "工作树变更已合并回主线" : `合并失败: ${r.error}`);
-                }}>合并</button>
-                <button className="wt-detach" onClick={async () => {
-                  await api.detachWorktree(thread.id);
-                  setThread({ ...thread, worktree: null });
-                }}>✕</button>
-              </span>
-            )}
-            {branches.length > 0 && (
-              <select
-                className="mt-badge"
-                style={{ cursor: "pointer" }}
-                value={branches.find((b) => b.current)?.name || ""}
-                onChange={async (e) => {
-                  if (!project) return;
-                  try {
-                    await api.checkout(project.id, e.target.value);
-                    setBranches((bs) => bs.map((b) => ({ ...b, current: b.name === e.target.value })));
-                    setRefreshToken((r) => r + 1);
-                  } catch (err: any) { showToast(`切换失败: ${err?.message}`); }
-                }}
-              >
-                {branches.map((b) => <option key={b.name} value={b.name}>{b.name}</option>)}
-              </select>
-            )}
-            <span className="mt-badge">{models.find((m) => m.id === modelForThread)?.name || modelForThread}</span>
-            {(settings.harness as any) === "opencode" && <span className="mt-badge mt-badge-icon" style={{ color: "var(--green)" }}>⚙ opencode harness</span>}
-            {modeForThread !== "auto" && <span className="mt-badge" style={{ color: "var(--accent-strong)" }}><IconAlert size={11} /> {modeForThread}</span>}
-            {(thread?.scheduled?.length ?? 0) > 0 && <span className="mt-badge mt-badge-icon"><IconClock size={11} /> {thread!.scheduled!.length}</span>}
+              {shareOpen && (
+                <div className="share-menu" onMouseLeave={() => setShareOpen(false)}>
+                  <button className="tmenu-item" onClick={doShareLink}><span className="tmi-ico"><IconLink size={13} /></span>复制分享链接</button>
+                  <button className="tmenu-item" onClick={doCopyTranscript}><span className="tmi-ico"><IconLayers size={13} /></span>复制对话</button>
+                  <button className="tmenu-item" onClick={doExportMd}><span className="tmi-ico"><IconArrowDown size={13} /></span>导出 Markdown</button>
+                  <button className="tmenu-item" onClick={doPrint}><span className="tmi-ico"><IconFile size={13} /></span>导出 PDF(打印)</button>
+                  <button className="tmenu-item" onClick={doOpenWindow}><span className="tmi-ico"><IconExternal size={13} /></span>在新窗口中打开</button>
+                </div>
+              )}
+              <button className="ta-btn" title="摘要面板" onClick={() => setSummaryOpen(!summaryOpen)} style={summaryOpen ? { background: "var(--sel)", color: "var(--text)" } : undefined}>
+                <IconList size={15} />
+              </button>
+              {thread && (
+                <ThreadMenu
+                  thread={thread}
+                  onRename={async () => {
+                    const v = prompt("重命名对话：", thread.title);
+                    if (v) patchThread({ title: v });
+                  }}
+                  onPin={() => patchThread({ pinned: !thread.pinned })}
+                  onSideChat={openSideChat}
+                  onContinue={() => send("继续上次未完成的工作。")}
+                  onFork={openFork}
+                  onWorktree={async () => {
+                    if (!thread || thread.worktree) return;
+                    await api.attachWorktree(thread.id);
+                    const full = await api.thread(thread.id);
+                    setThread(full);
+                    showToast("已创建独立工作树,本轮起所有变更互不影响主线");
+                  }}
+                  onRetry={async () => {
+                    if (!thread) return;
+                    await api.retry(thread.id);
+                    setRunning(true);
+                  }}
+                  onSchedule={addSchedule}
+                  onShare={doShareLink}
+                  onCopyTranscript={doCopyTranscript}
+                  onOpenWindow={doOpenWindow}
+                  onPrint={doPrint}
+                  onExport={doExportMd}
+                  onArchive={doArchive}
+                />
+              )}
+              <button className="ta-btn" title="新建对话" onClick={newChat}><IconPlus size={14} /></button>
+            </div>
           </div>
 
           {childChats.length > 0 && (
@@ -1056,7 +1099,7 @@ export default function CodexShell() {
                     onReasoning={(r) => saveSettings({ reasoning: r } as any)}
                   />
                   <div className="composer-hint">
-                    <span>OpenEveryAgent can make mistakes. Check important info. · ⌘K commands · ⌘S side chat</span>
+                    <span>OpenEveryAgent can make mistakes. Check important info. · ⌘K commands · ⌥⌘S side chat</span>
                     {approxTokens > 0 && <span className="usage-chip" title={lastUsage ? "opencode 真实用量" : "上下文估算 token(/compact 可压缩)"}>{lastUsage ? "" : "≈"}{(approxTokens / 1000).toFixed(1)}k tok{lastUsage?.cost ? ` · $${lastUsage.cost.toFixed(4)}` : ""}</span>}
                   </div>
                 </div>
