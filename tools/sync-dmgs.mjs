@@ -56,13 +56,25 @@ const PRODUCTS = {
   },
   claude: {
     label: "Anthropic Claude",
-    source: "https://downloads.claude.ai/claude-science/latest/mac-arm64.dmg",
+    source: "https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest/Claude.dmg",
     async resolve() {
-      const url = ARCH === "arm64" ? this.source : "https://downloads.claude.ai/claude-science/latest/mac-x64.dmg";
-      const r = await fetch(url, { method: "HEAD", ...UA });
-      if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`);
-      const len = Number(r.headers.get("content-length") || 0);
-      return { version: "latest", url, file: "Claude.dmg", size: len };
+      // two official channels exist:
+      //  classic  = osprey bucket (standard Claude desktop, Electron)
+      //  science  = claude.com/download's current public link (Claude Science app)
+      const candidates = [
+        { channel: "classic", url: this.source, file: "Claude.dmg" },
+        { channel: "science", url: ARCH === "arm64" ? "https://downloads.claude.ai/claude-science/latest/mac-arm64.dmg" : "https://downloads.claude.ai/claude-science/latest/mac-x64.dmg", file: "Claude-Science.dmg" },
+      ];
+      for (const c of candidates) {
+        const r = await fetch(c.url, { method: "HEAD", ...UA });
+        if (r.ok) {
+          const len = Number(r.headers.get("content-length") || 0);
+          const lastMod = r.headers.get("last-modified");
+          const v = lastMod ? `latest-${new Date(lastMod).toISOString().slice(0, 10)}` : "latest";
+          return { version: v, url: c.url, file: c.file, size: len, channel: c.channel };
+        }
+      }
+      throw new Error("no claude dmg reachable");
     },
   },
   muse: {
@@ -137,7 +149,22 @@ function extractFeatureList(archivePath, name) {
       lines.push("__hatch__/index.html");
       try {
         const meta = path.join(hatch, "metaconfig.json");
-        if (fs.existsSync(meta)) lines.push("__hatch__/metaconfig.json " + fs.statSync(meta).size);
+        if (fs.existsSync(meta)) {
+          lines.push("__hatch__/metaconfig.json");
+          const cfg = JSON.parse(fs.readFileSync(meta, "utf8"));
+          for (const v of Object.values(cfg.clientParameters || {})) {
+            if (v && v.key) lines.push(`flag:${v.key}`);
+          }
+        }
+      } catch {}
+    }
+    if (!lines.length) {
+      // native app: top-level Resources entries become the feature surface
+      try {
+        for (const e of fs.readdirSync(res)) {
+          if (/\.(lproj|car|plist)$/i.test(e)) continue;
+          lines.push(`res:${e}`);
+        }
       } catch {}
     }
     return lines;
@@ -149,6 +176,7 @@ function extractFeatureList(archivePath, name) {
 function featureKeys(lines) {
   const keys = new Set();
   for (const l of lines) {
+    if (l.startsWith("flag:") || l.startsWith("res:")) { keys.add(l); continue; }
     const base = l.split("/").pop() || "";
     const m = base.match(/^([a-z][a-z0-9-]+?)(?:-[A-Za-z0-9_-]{6,})?\.(?:js|css|svg|json|html)$/i);
     if (m) keys.add(m[1].toLowerCase());

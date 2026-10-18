@@ -116,7 +116,7 @@ Old builds are pruned automatically after each successful download (`--keep-old`
 | Product | Official latest source (observed from in-app update config) |
 | --- | --- |
 | **OpenAI Codex** | Sparkle feed `https://persistent.oaistatic.com/codex-app-prod/appcast.xml` → `persistent.oaistatic.com/.../ChatGPT-darwin-arm64-<ver>.zip` |
-| **Anthropic Claude** | `https://downloads.claude.ai/claude-science/latest/mac-arm64.dmg` |
+| **Anthropic Claude** | classic desktop: `https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest/Claude.dmg` (fallback: `downloads.claude.ai/claude-science/latest/…`) |
 | **Meta Muse** | Sparkle feed `https://www.facebook.com/endo/release/appcast.xml?channel=production` (signed CDN enclosure) |
 | **Cursor Grok Bot** | `https://cursor.com/download/bot` → `downloads.cursor.com/grokbot/stable/darwin-arm64/<ver>/Grok_Bot_<ver>.dmg` |
 
