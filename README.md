@@ -105,10 +105,11 @@ module lists so new features show up immediately:
 
 ```bash
 npm run dmgs              # resolve latest versions only
-node tools/sync-dmgs.mjs --all   # download + prune old + analyze + feature diff
+node tools/sync-dmgs.mjs --all   # download + auto-prune old + analyze + feature diff
+node tools/sync-dmgs.mjs --all --clean-downloads   # also prune old loose installers in ~/Downloads
 ```
 
-Managed folder: `~/Downloads/OpenEveryAgent-DMGs/<product>/`
+Old builds are pruned automatically after each successful download (`--keep-old` to disable). Managed folder: `~/Downloads/OpenEveryAgent-DMGs/<product>/`
 (`features-<version>.txt` holds the module list; the next `--all` run prints
 `+new / -removed` module names vs the previous version.)
 

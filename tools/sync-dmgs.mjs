@@ -29,7 +29,9 @@ const args = process.argv.slice(2);
 const has = (f) => args.includes(f);
 const only = args.filter((a) => !a.startsWith("--"));
 const DO_DOWNLOAD = has("--download") || has("--all");
-const DO_CLEAN = has("--clean") || has("--all");
+const KEEP_OLD = has("--keep-old");
+const CLEAN_DOWNLOADS = has("--clean-downloads");
+const DO_CLEAN = !KEEP_OLD;
 const DO_ANALYZE = has("--analyze") || has("--all");
 
 const UA = { headers: { "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" } };
@@ -186,6 +188,64 @@ async function download(url, dest) {
   return "downloaded";
 }
 
+/* ---------- loose ~/Downloads cleanup (safe patterns only) ---------- */
+function parseVer(v) {
+  return String(v || "").replace(/[^0-9.]/g, "").split(".").filter(Boolean).map(Number);
+}
+function cmpVer(a, b) {
+  const x = parseVer(a), y = parseVer(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] || 0) - (y[i] || 0);
+    if (d) return d;
+  }
+  return 0;
+}
+function sha256File(p) {
+  return execFileSync("shasum", ["-a", "256", p], { encoding: "utf8" }).split(" ")[0];
+}
+
+function cleanLooseDownloads(name, info, managedPath) {
+  const dl = path.join(os.homedir(), "Downloads");
+  const patterns = {
+    codex: /^(ChatGPT|Codex)[^/]*\.(dmg|zip)$/i,
+    claude: /^Claude[^/]*\.dmg$/i,
+    muse: /^Muse[-_. ][^/]*\.dmg$/i,
+    grok: /^(Grok[ _-]?Bot|GrokBot)[^/]*\.dmg$/i,
+  };
+  const re = patterns[name];
+  if (!re) return;
+  let entries = [];
+  try { entries = fs.readdirSync(dl); } catch { return; }
+  for (const f of entries) {
+    if (!re.test(f)) continue;
+    const full = path.join(dl, f);
+    let st;
+    try { st = fs.statSync(full); } catch { continue; }
+    if (!st.isFile()) continue;
+
+    // 1) versioned filename → delete only if strictly older than latest
+    const vm = f.match(/(\d+\.\d+(?:\.\d+)*)/);
+    if (vm && info.version && /^\d/.test(info.version)) {
+      if (cmpVer(vm[1], info.version) < 0) {
+        fs.rmSync(full, { force: true });
+        console.log(`  cleaned loose old: ~/Downloads/${f} (v${vm[1]} < v${info.version})`);
+      }
+      continue;
+    }
+
+    // 2) unversioned/duplicate → delete only if byte-identical to the managed build
+    try {
+      const ms = fs.statSync(managedPath);
+      if (ms.size === st.size) {
+        if (sha256File(full) === sha256File(managedPath)) {
+          fs.rmSync(full, { force: true });
+          console.log(`  cleaned loose duplicate: ~/Downloads/${f}`);
+        }
+      }
+    } catch {}
+  }
+}
+
 /* ---------- main ---------- */
 const pick = only.length ? only : Object.keys(PRODUCTS);
 for (const name of pick) {
@@ -208,13 +268,19 @@ for (const name of pick) {
     } catch (e) { console.log(`  ✗ download failed: ${e.message}`); continue; }
   }
 
-  if (DO_CLEAN) {
-    const keep = new Set([info.file]);
+  if (DO_CLEAN && fs.existsSync(target)) {
     for (const f of fs.readdirSync(dir)) {
-      if (!/\.(dmg|zip)$/i.test(f) || keep.has(f)) continue;
+      if (!/\.(dmg|zip)$/i.test(f) || f === info.file) continue;
       fs.rmSync(path.join(dir, f), { force: true });
-      console.log(`  cleaned: ${f}`);
+      console.log(`  cleaned old build: ${f}`);
     }
+    for (const f of fs.readdirSync(dir)) {
+      if (f.endsWith(".part")) fs.rmSync(path.join(dir, f), { force: true });
+    }
+  }
+
+  if (CLEAN_DOWNLOADS && fs.existsSync(target)) {
+    cleanLooseDownloads(name, info, target);
   }
 
   if (DO_ANALYZE && fs.existsSync(target)) {
