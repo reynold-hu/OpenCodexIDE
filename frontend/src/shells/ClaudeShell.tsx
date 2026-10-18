@@ -10,6 +10,7 @@ import { ClaudeRayMark } from "../components/RayMark";
 import { Mascot } from "../components/Mascot";
 import { useMascotMachine } from "../lib/mascotState";
 import { Buddy } from "../components/Buddy";
+import { BrandMark } from "../components/BrandMark";
 import { apiFetch } from "../api";
 
 type Page = "home" | "chat" | "projects" | "artifacts";
@@ -200,7 +201,7 @@ export default function ClaudeShell() {
       <main className="cl-main">
         {page === "home" && (
           <div className="cl-home">
-            <Mascot mode="claude" state={machine.state} size={64} />
+            <BrandMark product="claude" size={64} fallback={<Mascot mode="claude" state={machine.state} size={64} />} />
             <h1>{new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 18 ? "Good afternoon" : "Good evening"}, {settings.account.name}</h1>
             <div className="cl-input-wrap">
               <textarea className="cl-input" rows={2} placeholder="How can I help you today?" value={input}

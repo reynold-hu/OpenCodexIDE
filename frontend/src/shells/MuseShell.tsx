@@ -7,6 +7,7 @@ import { playChime } from "../lib/sound";
 import { Mascot } from "../components/Mascot";
 import { useMascotMachine } from "../lib/mascotState";
 import { Buddy } from "../components/Buddy";
+import { BrandMark } from "../components/BrandMark";
 import { CloudPanel } from "../components/CloudPanel";
 import { BlockView } from "../components/Blocks";
 import { IconGear, IconX, IconTrash, IconPencil, IconStop } from "../icons";
@@ -127,7 +128,7 @@ export default function MuseShell() {
       <main className="muse-main">
         {page === "create" && (
           <div className="muse-create">
-            <Mascot mode="muse" state={machine.state} size={84} />
+            <BrandMark product="muse" size={84} fallback={<Mascot mode="muse" state={machine.state} size={84} />} />
             <h1>What will you make?</h1>
             <div className="muse-kinds">
               {KINDS.map((k) => <button key={k.id} className={`mk ${kind === k.id ? "on" : ""}`} onClick={() => setKind(k.id)}>{k.id}</button>)}

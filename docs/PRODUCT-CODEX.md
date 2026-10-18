@@ -123,6 +123,13 @@ turn_complete(usage) · turn_cancelled · turn_error`.
   celebrate + level; cancel → dizzy; no thread → sleep)
 - dot orb: `sleeping|idle|running|jumping` (spring)
 
+## Branding
+
+Startup screens resolve a brand mark as: `/brand/<product>.png` → `.svg` →
+original OpenEveryAgent mark. Files are served from
+`~/.open-every-agent/brand/` (local, git-excluded). No third-party brand
+assets are distributed with this repository.
+
 ## 6. Persistence
 
 - `~/.open-every-agent/codex/state.json` — settings, projects, threads, agents

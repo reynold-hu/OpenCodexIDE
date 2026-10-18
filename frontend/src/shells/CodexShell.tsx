@@ -7,6 +7,7 @@ import { playChime } from "../lib/sound";
 import { Mascot } from "../components/Mascot";
 import { useMascotMachine } from "../lib/mascotState";
 import { Buddy } from "../components/Buddy";
+import { BrandMark } from "../components/BrandMark";
 import { AgentRoster } from "../components/AgentRoster";
 import { Dot, DOT_VARIANTS, dotStateFrom } from "../components/Dot";
 import { VoiceCall } from "../components/VoiceCall";
@@ -890,7 +891,7 @@ export default function CodexShell() {
               onRestore={async (id) => { await api.updateThread(id, { archived: false } as any); setRefreshToken((r) => r + 1); }} />
           ) : !thread && blocks.length === 0 ? (
             <div className="landing">
-              <Mascot mode="codex" state={machine.state} size={92} level={machine.level} />
+              <BrandMark product="codex" size={92} fallback={<Mascot mode="codex" state={machine.state} size={92} level={machine.level} />} />
               <h1>{(MODE_STRINGS[settings.appMode || "codex"] || MODE_STRINGS.codex).title}</h1>
               <div style={{ width: "100%", maxWidth: 680 }}>
                 <Composer

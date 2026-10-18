@@ -10,6 +10,8 @@ import { AgentRoster } from "../components/AgentRoster";
 import { CloudPanel } from "../components/CloudPanel";
 import { useMascotMachine } from "../lib/mascotState";
 import { Buddy } from "../components/Buddy";
+import { BrandMark } from "../components/BrandMark";
+import { Mascot } from "../components/Mascot";
 import { IconGear, IconX, IconPlus, IconTrash, IconPencil, IconStop } from "../icons";
 
 type Page = "tasks" | "dispatch" | "team" | "automations" | "cloud";
@@ -158,7 +160,10 @@ export default function GrokShell() {
       <main className="gk-main">
         {page === "dispatch" && (
           <div className="gk-dispatch">
-            <h1>给团队派个活</h1>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}>
+              <BrandMark product="grok" size={72} fallback={<Mascot mode="grok" state="idle" size={72} />} />
+            </div>
+            <h1 style={{ textAlign: "center" }}>给团队派个活</h1>
             <div className="gk-picker">
               <div className="gk-picker-label">成员{picked.length ? ` · 已选 ${picked.length}` : " · 不选则由协调者自动分配"}</div>
               <div className="gk-chips">

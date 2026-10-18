@@ -1856,3 +1856,7 @@ pre.codeblock {
 .auto-badge.warn { color: #d9a520; border-color: rgba(217,165,32,.45); }
 .roots-row { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
 .roots-row .select-like { flex: 1; min-width: 0; }
+
+/* ---------- startup brand mark (local-only assets with original fallback) ---------- */
+.bm-wrap { display: grid; place-items: center; flex: 0 0 auto; }
+.bm-wrap img { filter: drop-shadow(0 8px 24px rgba(0,0,0,.22)); }

@@ -185,6 +185,15 @@ With a real provider, the agent runs a full tool-calling loop
 the same plan cards, command cards, diffs and approval gates as simulated mode,
 with multi-turn context rebuilt from the stored transcript.
 
+## Startup branding (local-only)
+
+Startup screens prefer **user-provided local icons** served from
+`~/.open-every-agent/brand/<product>.png|svg` (e.g. `codex.png`, `claude.png`,
+`muse.png`, `grok.png`); drop in your own files there and they appear
+immediately. These assets stay **outside the repository and are never
+committed** — third-party logos remain trademarks/copyright of their owners,
+and the repo ships only our original marks as fallbacks.
+
 ## Docs
 
 - [Codex surface — product design & reference](docs/PRODUCT-CODEX.md)
