@@ -611,14 +611,16 @@ export default function CodexShell() {
     [newChat, openSideChat, summaryOpen, settings, saveSettings, panelOpen, createProject]
   );
 
+  const awaitingApprovalPre = blocks.some((b) => b.kind === "command" && (b as any).status === "awaiting_approval");
+  const [totalTokens, setTotalTokens] = useState(0);
+  const machine = useMascotMachine({ hasThread: !!thread || blocks.length > 0, running, awaitingApproval: awaitingApprovalPre, tokenCount: totalTokens });
+  machineRef.current = { notifyCompleted: machine.notifyCompleted, notifyCancelled: machine.notifyCancelled, notifyApproved: machine.notifyApproved };
+
   if (!settings) return <div style={{ display: "grid", placeItems: "center", height: "100vh" }}><span className="spinner" /></div>;
 
   const modelForThread = (thread?.model || settings.model)!;
   const modeForThread = (thread?.approvalMode || settings.approvalMode)!;
-  const awaitingApproval = blocks.some((b) => b.kind === "command" && (b as any).status === "awaiting_approval");
-  const [totalTokens, setTotalTokens] = useState(0);
-  const machine = useMascotMachine({ hasThread: !!thread || blocks.length > 0, running, awaitingApproval, tokenCount: totalTokens });
-  machineRef.current = { notifyCompleted: machine.notifyCompleted, notifyCancelled: machine.notifyCancelled, notifyApproved: machine.notifyApproved };
+  const awaitingApproval = awaitingApprovalPre;
   const grouped = groupBlocks(blocks);
   const approxTokens = lastUsage ? (lastUsage.input_tokens || 0) + (lastUsage.output_tokens || 0) : Math.round(blocks.reduce((sum: number, b: any) => sum + (b.kind === "prompt" || b.kind === "agent_message" ? String(b.text || "").length : 0), 0) / 3);
   const childChats = thread ? threads.filter((t) => t.sideOf === thread.id) : [];
