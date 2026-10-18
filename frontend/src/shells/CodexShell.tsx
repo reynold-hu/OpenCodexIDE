@@ -8,7 +8,6 @@ import { Mascot } from "../components/Mascot";
 import { useMascotMachine } from "../lib/mascotState";
 import { Buddy } from "../components/Buddy";
 import { BrandMark } from "../components/BrandMark";
-import { AgentRoster } from "../components/AgentRoster";
 import { Dot, DOT_VARIANTS, dotStateFrom } from "../components/Dot";
 import { VoiceCall } from "../components/VoiceCall";
 import { Composer } from "../components/Composer";
@@ -22,12 +21,6 @@ import { SummaryPanel } from "../components/SummaryPanel";
 import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft, IconBranch, IconLink, IconChevron, IconPencil, IconTrash } from "../icons";
 import { apiFetch } from "../api";
 
-export const MODE_STRINGS: Record<string, { title: string; ask: string; chips: string[] }> = {
-  codex: { title: "Where should we work?", ask: "Ask the agent anything…", chips: ["Create a calculator in JavaScript", "Build a todo list app in Python", "做一个个人资产看板网页", "List the workspace files", "Write a small HTTP server in Node", "What is the git status?"] },
-  claude: { title: "How can I help you today?", ask: "Message Claude…", chips: ["帮我起草一封邮件", "解释这段代码的思路", "写一份项目周报", "头脑风暴产品名称", "润色这篇文章", "总结这份文档"] },
-  muse: { title: "What will you make?", ask: "Start creating…", chips: ["生成一个落地页视觉稿", "写一段产品发布文案", "配色方案探索", "起 10 个品牌名", "设计一个 logo 概念", "分镜脚本草稿"] },
-  grok: { title: "What should we get done?", ask: "Task Grok Bot…", chips: ["调研竞品并输出对比表", "自动化这批文件的整理", "跑一个定时监控任务", "把这份数据做成报表", "起草并检查 SQL", "总结今天的邮件要点"] },
-};
 
 const CHIPS = [
   "Create a calculator in JavaScript",
@@ -65,7 +58,6 @@ export default function CodexShell() {
   const [lastUsage, setLastUsage] = useState<{ input_tokens?: number; output_tokens?: number; cost?: number } | null>(null);
   const [branches, setBranches] = useState<{ name: string; current: boolean }[]>([]);
   const [queued, setQueued] = useState<string[]>([]);
-  const [teamMode, setTeamMode] = useState(false);
   const [dotFlight, setDotFlight] = useState<{ color: string } | null>(null);
   const [callOpen, setCallOpen] = useState(false);
   const conversationMode = (settings as any)?.conversationMode || "codex";
@@ -416,13 +408,13 @@ export default function CodexShell() {
       if (running) {
         setInput("");
         setQueued((q) => [...q, text]);
-        await api.prompt(created.id, text, teamMode && !text.startsWith("/"));
+        await api.prompt(created.id, text);
         return;
       }
       await openThread(created);
       setInput("");
       setBlocks((b) => [...b, { kind: "prompt", text }]);
-      await api.prompt(created.id, text, teamMode && !text.startsWith("/"));
+      await api.prompt(created.id, text);
     },
     [thread, project, openThread]
   );
@@ -804,11 +796,6 @@ export default function CodexShell() {
             {(settings.harness as any) === "opencode" && <span className="mt-badge mt-badge-icon" style={{ color: "var(--green)" }}>⚙ opencode harness</span>}
             {modeForThread !== "auto" && <span className="mt-badge" style={{ color: "var(--accent-strong)" }}><IconAlert size={11} /> {modeForThread}</span>}
             {(thread?.scheduled?.length ?? 0) > 0 && <span className="mt-badge mt-badge-icon"><IconClock size={11} /> {thread!.scheduled!.length}</span>}
-            {(settings.appMode === "grok" || settings.appMode === "muse") && (
-              <button className="mt-badge cloud-chip" onClick={() => { setPanelOpen(true); setTabRequest((r) => ({ tab: "cloud", nonce: r.nonce + 1 })); }}>
-                ☁ 云端 PC
-              </button>
-            )}
           </div>
 
           {childChats.length > 0 && (
@@ -868,8 +855,6 @@ export default function CodexShell() {
                 })}
               </div>
             </div>
-          ) : railView === "agents" ? (
-            <AgentRoster />
           ) : railView === "artifacts" || railView === "history" || railView === "projects" || railView === "more" ? (
             <RailPage view={railView} threads={allThreads} archived={archivedThreads} onOpenThread={openThread} onCreateProject={createProject}
               projects={projects}
@@ -892,7 +877,7 @@ export default function CodexShell() {
           ) : !thread && blocks.length === 0 ? (
             <div className="landing mode-fade" key={`landing-${conversationMode}`}>
               <BrandMark product="codex" size={92} fallback={<Mascot mode="codex" state={machine.state} size={92} level={machine.level} />} />
-              <h1>{(MODE_STRINGS[settings.appMode || "codex"] || MODE_STRINGS.codex).title}</h1>
+              <h1>Where should we work?</h1>
               <div style={{ width: "100%", maxWidth: 680 }}>
                 <Composer
                   value={input}
@@ -904,19 +889,17 @@ export default function CodexShell() {
                   onModel={setThreadModel}
                   approvalMode={modeForThread}
                   onApprovalMode={setThreadMode}
-                  placeholder={(MODE_STRINGS[settings.appMode || "codex"] || MODE_STRINGS.codex).ask}
+                  placeholder="Ask the agent anything…"
                   autoFocus
                   projectId={project?.id}
                   onStop={stopTurn}
                   reasoning={settings.reasoning}
                   onReasoning={(r) => saveSettings({ reasoning: r } as any)}
-                  teamMode={teamMode}
-                  onTeamMode={setTeamMode}
                 />
                 <div className="composer-hint">OpenEveryAgent can make mistakes. Check important info.</div>
               </div>
               <div className="chips">
-                {(MODE_STRINGS[settings.appMode || "codex"] || MODE_STRINGS.codex).chips.map((c) => (
+                {["Create a calculator in JavaScript", "Build a todo list app in Python", "做一个个人资产看板网页", "List the workspace files", "Write a small HTTP server in Node", "What is the git status?"].map((c) => (
                   <button key={c} className="chip" onClick={() => send(c)}>
                     {c}
                   </button>
@@ -1032,8 +1015,6 @@ export default function CodexShell() {
                     onStop={stopTurn}
                     reasoning={settings.reasoning}
                     onReasoning={(r) => saveSettings({ reasoning: r } as any)}
-                    teamMode={teamMode}
-                    onTeamMode={setTeamMode}
                   />
                   <div className="composer-hint">
                     <span>OpenEveryAgent can make mistakes. Check important info. · ⌘K commands · ⌘S side chat</span>
@@ -1160,7 +1141,7 @@ function RailPage({ view, threads, archived, onOpenThread, onCreateProject, proj
 
   return (
     <div className="rail-page">
-      <h2>{view === "artifacts" ? "Artifacts · 产物" : view === "history" ? "History · 全部对话" : view === "projects" ? "Projects · 项目" : view === "agents" ? "Agents" : "Apps"}</h2>
+      <h2>{view === "artifacts" ? "Artifacts · 产物" : view === "history" ? "History · 全部对话" : view === "projects" ? "Projects · 项目" : "Apps"}</h2>
       {view === "artifacts" && (
         loading ? <div className="sp-empty">loading…</div> : artifacts.length === 0 ? <div className="sp-empty">还没有产物。让 Codex 写点东西吧。</div> : (
           <div className="rp-list">
@@ -1210,18 +1191,6 @@ function RailPage({ view, threads, archived, onOpenThread, onCreateProject, proj
             </div>
           ))}
           <button className="rp-item" onClick={onCreateProject}><IconPlus size={13} /> New project</button>
-        </div>
-      )}
-      {view === "agents" && (
-        <div className="rp-list">
-          <div className="rp-item" style={{ cursor: "default" }}>
-            <span style={{ flex: 1 }}>Codex (built-in agent)</span>
-            <span className="rp-sub">active · tool-calling loop over your workspace</span>
-          </div>
-          <div className="rp-item" style={{ cursor: "default", opacity: 0.6 }}>
-            <span style={{ flex: 1 }}>More agents</span>
-            <span className="rp-sub">roadmap — PRs welcome</span>
-          </div>
         </div>
       )}
       {view === "more" && (

@@ -1,14 +1,13 @@
 import React from "react";
-import { IconHome, IconLayers, IconClock, IconLibrary, IconAt, IconDots, IconGrid, IconGear, IconCalendar } from "../icons";
+import { IconHome, IconLayers, IconClock, IconLibrary, IconDots, IconGrid, IconGear, IconCalendar } from "../icons";
 
-export type RailView = "home" | "artifacts" | "history" | "projects" | "agents" | "automations" | "more";
+export type RailView = "home" | "artifacts" | "history" | "projects" | "automations" | "more";
 
 const ITEMS: { id: RailView; label: string; icon: React.ReactNode }[] = [
   { id: "home", label: "Home", icon: <IconHome size={17} /> },
   { id: "artifacts", label: "Artifacts", icon: <IconLayers size={17} /> },
   { id: "history", label: "History", icon: <IconClock size={17} /> },
   { id: "projects", label: "Projects", icon: <IconLibrary size={17} /> },
-  { id: "agents", label: "Agents", icon: <IconAt size={17} /> },
   { id: "automations", label: "Automations", icon: <IconCalendar size={17} /> },
 ];
 

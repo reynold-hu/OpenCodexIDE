@@ -140,50 +140,6 @@ export function SettingsModal({
             </>
           )}
 
-          <div className="menu-label" style={{ padding: "14px 0 4px" }}>SKIN → PROVIDER 映射</div>
-          {([["codex", "Codex"], ["claude", "Claude"], ["muse", "Muse"], ["grok", "Grok"]] as const).map(([id, label]) => (
-            <div className="set-row" key={id}>
-              <div className="sr-label"><div className="sr-title">{label} 模式默认 provider</div><div className="sr-desc">切换到该皮肤时自动启用</div></div>
-              <select
-                className="select-like"
-                value={(settings.modeProviders || {})[id] || ""}
-                onChange={(e) => onChange({ modeProviders: { ...(settings.modeProviders || {}), [id]: e.target.value } } as Partial<Settings>)}
-              >
-                <option value="">不改变</option>
-                {providers.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-              </select>
-            </div>
-          ))}
-
-          {(import.meta as any).env.VITE_PRODUCT === "codex" && (
-            <>
-              <div className="menu-label" style={{ padding: "14px 0 4px" }}>AGENT HARNESS</div>
-              <div className="set-row">
-                <div className="sr-label">
-                  <div className="sr-title">执行引擎</div>
-                  <div className="sr-desc">opencode serve = 真实 agent 循环(自动拉起 headless server,复用其 provider 配置);内置 = 自带轻量循环/模拟器</div>
-                </div>
-                <div className="segmented">
-                  <button className={(settings as any).harness !== "opencode" ? "on" : ""} onClick={() => onChange({ harness: "builtin" } as any)}>内置引擎</button>
-                  <button className={(settings as any).harness === "opencode" ? "on" : ""} onClick={() => onChange({ harness: "opencode" } as any)}>opencode serve</button>
-                </div>
-              </div>
-              <div className="set-row">
-                <div className="sr-label"><div className="sr-title">opencode 可用性</div><div className="sr-desc">{harnessInfo}</div></div>
-              </div>
-            </>
-          )}
-          <div className="menu-label" style={{ padding: "14px 0 4px" }}>自动审查规则 · AUTO-REVIEW</div>
-          {([["allowNetwork", "允许联网命令自动执行", "curl / git clone / npm install 等"],
-             ["allowWrite", "允许写入命令自动执行", "mv / sed -i / git commit 等"],
-             ["blockDestructive", "高危命令必须人工确认", "rm -rf / sudo / push --force 等"]] as const).map(([key, title, desc]) => (
-            <div className="set-row" key={key}>
-              <div className="sr-label"><div className="sr-title">{title}</div><div className="sr-desc">{desc}</div></div>
-              <button className={`switch ${((settings as any).autoReview?.[key] ?? (key === "blockDestructive")) ? "on" : ""}`}
-                onClick={() => onChange({ autoReview: { ...((settings as any).autoReview || {}), [key]: !((settings as any).autoReview?.[key] ?? (key === "blockDestructive")) } } as any)} />
-            </div>
-          ))}
-
           <div className="menu-label" style={{ padding: "14px 0 4px" }}>安全锁 · PASSKEY</div>
           <div className="set-row">
             <div className="sr-label">
