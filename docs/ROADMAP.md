@@ -33,11 +33,11 @@ four IDE surfaces reach feature parity.
 
 - [x] Dots (7 gradient variants, spring states, dots sidebar, Compact/Detailed)
 - [x] ChatGPT / ChatGPT Work / Codex conversation-detail modes
-- [ ] Passkey lock (WebAuthn Touch ID): backend routes + lock screen
-- [ ] Dot character preview + onboarding "flight" animation
-- [ ] Auto-review rule settings (allow network/writes, block destructive)
-- [ ] Dot voice call surface (placeholder until local voice stack lands)
-- [ ] Cloud chats section (local vs cloud task split, placeholder)
+- [x] Passkey lock (WebAuthn Touch ID): backend routes + lock screen
+- [x] Dot character preview + onboarding "flight" animation
+- [x] Auto-review rule settings (allow network/writes, block destructive)
+- [x] Dot voice call surface (Web Speech placeholder call modal)
+- [x] Cloud chats section (local vs cloud task split, placeholder)
 
 ## Claude surface
 

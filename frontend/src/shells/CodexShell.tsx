@@ -9,6 +9,7 @@ import { useMascotMachine } from "../lib/mascotState";
 import { Buddy } from "../components/Buddy";
 import { AgentRoster } from "../components/AgentRoster";
 import { Dot, DOT_VARIANTS, dotStateFrom } from "../components/Dot";
+import { VoiceCall } from "../components/VoiceCall";
 import { Composer } from "../components/Composer";
 import { BlockView } from "../components/Blocks";
 import { SidePanel } from "../components/SidePanel";
@@ -63,6 +64,7 @@ export default function CodexShell() {
   const [queued, setQueued] = useState<string[]>([]);
   const [teamMode, setTeamMode] = useState(false);
   const [dotFlight, setDotFlight] = useState<{ color: string } | null>(null);
+  const [callOpen, setCallOpen] = useState(false);
   const conversationMode = (settings as any)?.conversationMode || "codex";
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
@@ -728,6 +730,9 @@ export default function CodexShell() {
             )}
             <span className="mt-title">{thread?.title || "New chat"}</span>
             {thread && (
+              <button className="mt-badge" style={{ cursor: "pointer" }} onClick={() => setCallOpen(true)} title="与 dot 语音通话(本地 Web Speech 模拟)">通话</button>
+            )}
+            {thread && (
               <button className="mt-badge" style={{ cursor: "pointer" }} onClick={toggleCompact} title="Compact = 紧凑 dot 会话;再次点击回到完整 transcript">
                 {thread.dot?.compact ? "Detailed" : "Compact"}
               </button>
@@ -1040,6 +1045,10 @@ export default function CodexShell() {
           </div>
         </div>
       )}
+
+      <VoiceCall open={callOpen} onClose={() => setCallOpen(false)} color={(thread?.dot?.color as any) || "default"}
+        lastMessage={(() => { const last = [...blocks].reverse().find((b) => b.kind === "agent_message") as any; return last?.text || ""; })()}
+        onSend={(text) => { setCallOpen(false); send(text); }} />
 
       {dotFlight && (
         <div className="dot-flight">

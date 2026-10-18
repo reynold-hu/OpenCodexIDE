@@ -50,6 +50,7 @@ export function Sidebar({
   running: boolean;
 }) {
   const [search, setSearch] = useState("");
+  const [scope, setScope] = useState<"local" | "cloud">("local");
   const [projOpen, setProjOpen] = useState(false);
   const [hits, setHits] = useState<{ id: string; title: string; sample: string[] }[] | null>(null);
 
@@ -158,6 +159,18 @@ export function Sidebar({
         )}
       </div>
 
+      <div className="scope-tabs">
+        <button className={scope === "local" ? "on" : ""} onClick={() => setScope("local")}>本地</button>
+        <button className={scope === "cloud" ? "on" : ""} onClick={() => setScope("cloud")}>云端</button>
+      </div>
+      {scope === "cloud" ? (
+        <div className="cloud-scope">
+          <div className="cs-title">云端会话</div>
+          <div className="cs-sub">真实产品的云端任务跑在远程 VM 上;本地版以工作区模拟,云端分区暂为占位。</div>
+          <div className="cs-row"><span className="status-dot" style={{ background: "var(--faint)" }} /><span>cloud-pc — 未连接</span></div>
+          <button className="btn" onClick={() => setScope("local")}>回到本地会话</button>
+        </div>
+      ) : (
       <div className="sb-scroll">
         {groups.map((g) => (
           <React.Fragment key={g.label}>
@@ -182,6 +195,7 @@ export function Sidebar({
         ))}
         {filtered.length === 0 && <div className="sp-empty">No chats yet</div>}
       </div>
+      )}
 
       <div className="sb-foot">
         <span className="avatar">{(account.name || "U")[0].toUpperCase()}</span>

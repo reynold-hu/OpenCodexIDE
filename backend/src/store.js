@@ -21,6 +21,7 @@ const DEFAULT_STATE = {
     sounds: true,
     account: { name: "developer", email: "developer@local" },
     passkey: { enabled: false },
+    autoReview: { allowNetwork: false, allowWrite: false, blockDestructive: true },
   },
   projects: [],
   threads: [],

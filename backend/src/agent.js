@@ -119,22 +119,17 @@ async function runCommand(state, thread, cmd, opts = {}) {
   const mode = thread.approvalMode || settings.approvalMode;
   const risk = classifyCommand(cmd);
   const mutating = (opts.mutating !== false && !READ_ONLY_CMDS.test(cmd.trim())) || risk.level === "write" || risk.level === "destructive";
-  if (risk.level === "destructive" && mode === "auto") {
-    pushEvent(state, thread, { type: "command", id, cmd, status: "awaiting_approval", risk, ts: Date.now() });
-    const { decision } = await bus.requestApproval(thread.id, cmd, dir);
-    const ev = thread.events.find((e) => e.type === "command" && e.id === id);
-    if (decision !== "approve") {
-      if (ev) Object.assign(ev, { status: "denied", reason: "高危命令未获批准" });
-      bus.broadcast(thread.id, { type: "command_update", id, status: "denied", reason: "高危命令未获批准" });
-      return { skipped: true, reason: "destructive command blocked" };
-    }
-  }
 
+  const rules = settings.autoReview || {};
+  const ruleTriggers =
+    (risk.level === "destructive" && rules.blockDestructive !== false) ||
+    (risk.level === "network" && !rules.allowNetwork) ||
+    (risk.level === "write" && !rules.allowWrite);
   if (mode === "read-only" && mutating) {
     pushEvent(state, thread, { type: "command", id, cmd, status: "denied", reason: "read-only mode", ts: Date.now() });
     return { skipped: true, reason: "read-only mode" };
   }
-  if (mode === "ask" && mutating) {
+  if ((mode === "ask" && mutating) || (mode === "auto" && ruleTriggers)) {
     pushEvent(state, thread, { type: "command", id, cmd, status: "awaiting_approval", risk, ts: Date.now() });
     const { decision } = await bus.requestApproval(thread.id, cmd, dir);
     const ev = thread.events.find((e) => e.type === "command" && e.id === id);

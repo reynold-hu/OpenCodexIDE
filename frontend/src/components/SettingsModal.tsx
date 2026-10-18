@@ -172,6 +172,17 @@ export function SettingsModal({
               </div>
             </>
           )}
+          <div className="menu-label" style={{ padding: "14px 0 4px" }}>自动审查规则 · AUTO-REVIEW</div>
+          {([["allowNetwork", "允许联网命令自动执行", "curl / git clone / npm install 等"],
+             ["allowWrite", "允许写入命令自动执行", "mv / sed -i / git commit 等"],
+             ["blockDestructive", "高危命令必须人工确认", "rm -rf / sudo / push --force 等"]] as const).map(([key, title, desc]) => (
+            <div className="set-row" key={key}>
+              <div className="sr-label"><div className="sr-title">{title}</div><div className="sr-desc">{desc}</div></div>
+              <button className={`switch ${((settings as any).autoReview?.[key] ?? (key === "blockDestructive")) ? "on" : ""}`}
+                onClick={() => onChange({ autoReview: { ...((settings as any).autoReview || {}), [key]: !((settings as any).autoReview?.[key] ?? (key === "blockDestructive")) } } as any)} />
+            </div>
+          ))}
+
           <div className="menu-label" style={{ padding: "14px 0 4px" }}>安全锁 · PASSKEY</div>
           <div className="set-row">
             <div className="sr-label">
