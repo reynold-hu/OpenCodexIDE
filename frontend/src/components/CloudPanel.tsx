@@ -61,7 +61,7 @@ export function CloudPcCard({ state, mode }: { state: string; mode?: string }) {
   return (
     <div className="card cloud-card">
       <div className="cmd-line">
-        <Mascot mode={mode || "grok"} state={shown === "ready" ? "ready" : "working"} size={22} />
+        <Mascot mode={mode || "grok"} state={shown === "ready" ? "celebrate" : "working"} size={22} />
         <span className="cmd-text">云端 PC {shown === "ready" ? "已就绪（本地占位模拟）" : "分配中…"}</span>
         <span className="ch-meta">placeholder</span>
       </div>

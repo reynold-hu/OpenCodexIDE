@@ -8,6 +8,8 @@ import { BlockView } from "../components/Blocks";
 import { AgentAvatar } from "../components/AgentAvatar";
 import { AgentRoster } from "../components/AgentRoster";
 import { CloudPanel } from "../components/CloudPanel";
+import { useMascotMachine } from "../lib/mascotState";
+import { Buddy } from "../components/Buddy";
 import { IconGear, IconX, IconPlus, IconTrash, IconPencil, IconStop } from "../icons";
 
 type Page = "tasks" | "dispatch" | "team" | "automations" | "cloud";
@@ -121,6 +123,8 @@ export default function GrokShell() {
   const renameTask = async (t: ThreadMeta) => { const v = prompt("重命名任务：", t.title); if (v) { await api.updateThread(t.id, { title: v }); setThreads((ts) => ts.map((x) => (x.id === t.id ? { ...x, title: v } : x))); if (thread?.id === t.id) setThread({ ...thread, title: v }); } };
   const deleteTask = async (id: string) => { await api.deleteThread(id); setThreads((ts) => ts.filter((x) => x.id !== id)); if (thread?.id === id) { esRef.current?.close(); setThread(null); setBlocks([]); setPage("dispatch"); } };
 
+  const awaitingApproval = blocks.some((b) => b.kind === "command" && (b as any).status === "awaiting_approval");
+  const machine = useMascotMachine({ hasThread: !!thread || blocks.length > 0, running, awaitingApproval, tokenCount: 0 });
   if (!settings) return <div className="boot"><span className="spinner" /></div>;
 
   return (
@@ -279,6 +283,8 @@ export default function GrokShell() {
           </div>
         )}
       </main>
+
+      <Buddy mode="grok" state={machine.state} hidden={(settings as any).buddy === false} />
 
       {settingsOpen && (
         <div className="overlay" onMouseDown={() => setSettingsOpen(false)}>

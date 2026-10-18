@@ -5,6 +5,8 @@ import { Sidebar } from "../components/Sidebar";
 import { blocksFromEvents, groupBlocks } from "../lib/blocks";
 import { playChime } from "../lib/sound";
 import { Mascot } from "../components/Mascot";
+import { useMascotMachine } from "../lib/mascotState";
+import { Buddy } from "../components/Buddy";
 import { AgentRoster } from "../components/AgentRoster";
 import { Composer } from "../components/Composer";
 import { BlockView } from "../components/Blocks";
@@ -66,6 +68,7 @@ export default function CodexShell() {
   const [automations, setAutomations] = useState<any[]>([]);
   const esRef = useRef<EventSource | null>(null);
   const approvalDiffs = useRef<Record<string, string>>({});
+  const machineRef = useRef<{ notifyCompleted: () => void; notifyCancelled: () => void; notifyApproved: () => void }>({ notifyCompleted: () => {}, notifyCancelled: () => {}, notifyApproved: () => {} });
   const approvalExpiry = useRef<Record<string, number>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const blocksRef = useRef<Block[]>([]);
@@ -195,6 +198,7 @@ export default function CodexShell() {
         break;
       case "turn_cancelled":
         setRunning(false);
+        machineRef.current.notifyCancelled();
         setBlocks((b) => {
           const last = b[b.length - 1];
           if (last && last.kind === "error" && last.message === "任务已停止") return b;
@@ -236,7 +240,8 @@ export default function CodexShell() {
       case "turn_complete":
         setRunning(false);
         setRefreshToken((r) => r + 1);
-        if (ev.usage && (ev.usage.input_tokens || ev.usage.output_tokens)) setLastUsage(ev.usage);
+        if (ev.usage && (ev.usage.input_tokens || ev.usage.output_tokens)) { setLastUsage(ev.usage); setTotalTokens((t) => t + (ev.usage.input_tokens || 0) + (ev.usage.output_tokens || 0)); }
+        machineRef.current.notifyCompleted();
         if (settings?.sounds) playChime();
         if (settings?.voice) {
           const last = [...blocksRef.current].reverse().find((b: any) => b.kind === "agent_message") as any;
@@ -387,6 +392,7 @@ export default function CodexShell() {
 
   const approve = useCallback(async (id: string, d: "approve" | "deny") => {
     await api.approval(id, d);
+    if (d === "approve") machineRef.current.notifyApproved();
   }, []);
 
   const stopTurn = useCallback(async () => {
@@ -573,6 +579,10 @@ export default function CodexShell() {
 
   const modelForThread = (thread?.model || settings.model)!;
   const modeForThread = (thread?.approvalMode || settings.approvalMode)!;
+  const awaitingApproval = blocks.some((b) => b.kind === "command" && (b as any).status === "awaiting_approval");
+  const [totalTokens, setTotalTokens] = useState(0);
+  const machine = useMascotMachine({ hasThread: !!thread || blocks.length > 0, running, awaitingApproval, tokenCount: totalTokens });
+  machineRef.current = { notifyCompleted: machine.notifyCompleted, notifyCancelled: machine.notifyCancelled, notifyApproved: machine.notifyApproved };
   const grouped = groupBlocks(blocks);
   const approxTokens = lastUsage ? (lastUsage.input_tokens || 0) + (lastUsage.output_tokens || 0) : Math.round(blocks.reduce((sum: number, b: any) => sum + (b.kind === "prompt" || b.kind === "agent_message" ? String(b.text || "").length : 0), 0) / 3);
   const childChats = thread ? threads.filter((t) => t.sideOf === thread.id) : [];
@@ -769,7 +779,7 @@ export default function CodexShell() {
             <RailPage view={railView} threads={allThreads} onOpenThread={openThread} onCreateProject={createProject} projects={projects} onProject={(p) => { setProject(p); setRailView("chat"); }} />
           ) : !thread && blocks.length === 0 ? (
             <div className="landing">
-              <Mascot mode={settings.appMode || "codex"} state={running ? "thinking" : "idle"} size={92} />
+              <Mascot mode="codex" state={machine.state} size={92} level={machine.level} />
               <h1>{(MODE_STRINGS[settings.appMode || "codex"] || MODE_STRINGS.codex).title}</h1>
               <div style={{ width: "100%", maxWidth: 680 }}>
                 <Composer
@@ -841,7 +851,7 @@ export default function CodexShell() {
                   ))}
                   {running && blocks[blocks.length - 1]?.kind !== "agent_message" && (
                     <div className="thinking-row">
-                      <Mascot mode={settings.appMode || "codex"} state="working" size={22} />
+                      <Mascot mode="codex" state="working" size={22} />
                       Thinking…
                     </div>
                   )}
@@ -963,6 +973,7 @@ export default function CodexShell() {
         </div>
       )}
 
+      <Buddy mode="codex" state={machine.state} level={machine.level} hidden={(settings as any).buddy === false} />
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

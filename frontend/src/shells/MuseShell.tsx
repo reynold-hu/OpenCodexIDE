@@ -5,6 +5,8 @@ import type { Block, Settings, ThreadMeta } from "../types";
 import { blocksFromEvents } from "../lib/blocks";
 import { playChime } from "../lib/sound";
 import { Mascot } from "../components/Mascot";
+import { useMascotMachine } from "../lib/mascotState";
+import { Buddy } from "../components/Buddy";
 import { CloudPanel } from "../components/CloudPanel";
 import { BlockView } from "../components/Blocks";
 import { IconGear, IconX, IconTrash, IconPencil, IconStop } from "../icons";
@@ -108,6 +110,8 @@ export default function MuseShell() {
   const deleteBoard = async (id: string) => { await api.deleteThread(id); setThreads((ts) => ts.filter((x) => x.id !== id)); if (thread?.id === id) { esRef.current?.close(); setThread(null); setBlocks([]); } };
   const openFile = async (path: string) => { if (!project) return; try { const f = await api.file(project.id, path); setFileView({ path, content: f.content }); } catch {} };
 
+  const awaitingApproval = blocks.some((b) => b.kind === "command" && (b as any).status === "awaiting_approval");
+  const machine = useMascotMachine({ hasThread: !!thread || blocks.length > 0, running, awaitingApproval, tokenCount: 0 });
   if (!settings) return <div className="boot"><span className="spinner" /></div>;
 
   return (
@@ -123,7 +127,7 @@ export default function MuseShell() {
       <main className="muse-main">
         {page === "create" && (
           <div className="muse-create">
-            <Mascot mode="muse" state={running ? "working" : "idle"} size={84} />
+            <Mascot mode="muse" state={machine.state} size={84} />
             <h1>What will you make?</h1>
             <div className="muse-kinds">
               {KINDS.map((k) => <button key={k.id} className={`mk ${kind === k.id ? "on" : ""}`} onClick={() => setKind(k.id)}>{k.id}</button>)}
@@ -185,7 +189,7 @@ export default function MuseShell() {
 
         {page === "voice" && (
           <div className="muse-page muse-voice-page">
-            <Mascot mode="muse" state={running ? "working" : voiceOn ? "ready" : "idle"} size={120} />
+            <Mascot mode="muse" state={running ? "working" : voiceOn ? "celebrate" : machine.state} size={120} />
             <h2>Voice embodiment</h2>
             <div className="mv-note">开启后,每次创作完成,小家伙会用语音把结果读给你听(浏览器 Web Speech)。</div>
             <button className={`mv-toggle ${voiceOn ? "on" : ""}`} onClick={async () => { const v = !voiceOn; setVoiceOn(v); await api.saveSettings({ voice: v } as any); setSettings(await api.settings()); }}>
@@ -233,6 +237,8 @@ export default function MuseShell() {
           </div>
         </div>
       )}
+
+      <Buddy mode="muse" state={machine.state} hidden={(settings as any).buddy === false} />
 
       {settingsOpen && (
         <div className="overlay" onMouseDown={() => setSettingsOpen(false)}>

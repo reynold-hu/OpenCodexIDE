@@ -7,6 +7,9 @@ import { playChime } from "../lib/sound";
 import { BlockView } from "../components/Blocks";
 import { IconPlus, IconSearch, IconGear, IconX, IconFile, IconGlobe, IconChevron, IconTrash, IconPencil, IconPanel, IconLayers, IconFolder, IconChat, IconStop } from "../icons";
 import { ClaudeRayMark } from "../components/RayMark";
+import { Mascot } from "../components/Mascot";
+import { useMascotMachine } from "../lib/mascotState";
+import { Buddy } from "../components/Buddy";
 
 type Page = "home" | "chat" | "projects" | "artifacts";
 
@@ -155,6 +158,8 @@ export default function ClaudeShell() {
   const renameThread = async (t: ThreadMeta) => { const v = prompt("重命名对话：", t.title); if (v) { await api.updateThread(t.id, { title: v }); setThreads((ts) => ts.map((x) => (x.id === t.id ? { ...x, title: v } : x))); if (thread?.id === t.id) setThread({ ...thread, title: v }); } };
   const removeThread = async (id: string) => { await api.deleteThread(id); setThreads((ts) => ts.filter((x) => x.id !== id)); if (thread?.id === id) { esRef.current?.close(); setThread(null); setBlocks([]); setPage("home"); } };
 
+  const awaitingApproval = blocks.some((b) => b.kind === "command" && (b as any).status === "awaiting_approval");
+  const machine = useMascotMachine({ hasThread: !!thread || blocks.length > 0, running, awaitingApproval, tokenCount: 0 });
   if (!settings) return <div className="boot"><span className="spinner" /></div>;
   const shown = hits ? threads.filter((t) => hits.some((h) => h.id === t.id)) : threads.filter((t) => (t.title || "").toLowerCase().includes(search.toLowerCase()));
 
@@ -194,6 +199,7 @@ export default function ClaudeShell() {
       <main className="cl-main">
         {page === "home" && (
           <div className="cl-home">
+            <Mascot mode="claude" state={machine.state} size={64} />
             <h1>{new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 18 ? "Good afternoon" : "Good evening"}, {settings.account.name}</h1>
             <div className="cl-input-wrap">
               <textarea className="cl-input" rows={2} placeholder="How can I help you today?" value={input}
@@ -313,6 +319,8 @@ export default function ClaudeShell() {
           </div>
         )}
       </main>
+
+      <Buddy mode="claude" state={machine.state} hidden={(settings as any).buddy === false} />
 
       {settingsOpen && (
         <div className="overlay" onMouseDown={() => setSettingsOpen(false)}>

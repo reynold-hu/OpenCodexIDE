@@ -223,6 +223,14 @@ export function SettingsModal({
 
           <div className="set-row">
             <div className="sr-label">
+              <div className="sr-title">桌面宠物 Buddy</div>
+              <div className="sr-desc">右下角常驻形象,7 种情绪跟随任务状态(睡觉/待命/干活/催审批/庆祝/晕/爱心)</div>
+            </div>
+            <button className={`switch ${(settings as any).buddy !== false ? "on" : ""}`} onClick={() => onChange({ buddy: (settings as any).buddy === false } as any)} />
+          </div>
+
+          <div className="set-row">
+            <div className="sr-label">
               <div className="sr-title">Account</div>
               <div className="sr-desc">{settings.account.email}</div>
             </div>

@@ -1516,3 +1516,67 @@ pre.codeblock {
 .cl-knowledge textarea { width: 100%; margin-top: 10px; background: var(--bg-deep); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-family: var(--mono); font-size: 12px; line-height: 1.5; resize: vertical; }
 .ck-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 8px; }
 .ck-dirty { font-size: 11.5px; color: #d9a520; }
+
+/* ---------- 7-state mascot machine ---------- */
+.mascot { color: var(--accent); overflow: visible; transition: color .3s; }
+.mascot .pup { transition: transform .4s ease; }
+.mascot.st-working .pup, .mascot.st-attention .pup { animation: lookAround 2.2s ease-in-out infinite; }
+@keyframes lookAround { 0%,100% { transform: translateX(0); } 25% { transform: translate(2px, -1px); } 50% { transform: translateX(0); } 75% { transform: translate(-2px, 1px); } }
+.blink { animation: blink 4.5s infinite; transform-origin: center; transform-box: fill-box; }
+@keyframes blink { 0%,92%,100% { transform: scaleY(1); } 95% { transform: scaleY(0.08); } }
+.mascot.st-sleep { color: var(--faint); }
+.mascot.st-sleep .body, .mascot.st-sleep .cr-rays { animation: breatheSlow 4s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+@keyframes breatheSlow { 0%,100% { transform: scale(1); } 50% { transform: scale(0.96) translateY(1px); } }
+.fx-zzz { animation: zzz 3s ease-in-out infinite; }
+@keyframes zzz { 0% { opacity: 0; transform: translateY(4px); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(-6px); } }
+.fx-sweat { animation: sweat 1.4s ease-in infinite; }
+@keyframes sweat { 0% { opacity: 0; transform: translateY(-2px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(8px); } }
+.fx-hearts path { animation: heartFloat 2.2s ease-in infinite; }
+.fx-hearts path:nth-child(2) { animation-delay: .5s; }
+@keyframes heartFloat { 0% { opacity: 0; transform: translateY(6px) scale(.6); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px) scale(1.1); } }
+.fx-confetti rect { animation: confetti 1.6s ease-out infinite; transform-origin: center; transform-box: fill-box; }
+@keyframes confetti { 0% { opacity: 0; transform: translateY(-6px) rotate(0); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateY(26px) rotate(220deg); } }
+.fx-alert { animation: alertPulse 0.9s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+@keyframes alertPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.25); opacity: .7; } }
+.mascot.st-attention { color: #d9a520; }
+.mascot.st-dizzy .body, .mascot.st-dizzy .mu-creature, .mascot.st-dizzy .cr-rays { animation: dizzyWobble .4s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+@keyframes dizzyWobble { 0%,100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+.mascot.st-celebrate .body, .mascot.st-celebrate .mu-creature, .mascot.st-celebrate .co-core, .mascot.st-celebrate .cr-rays { animation: bounceUp .55s cubic-bezier(.34,1.56,.64,1) infinite; transform-origin: center bottom; transform-box: fill-box; }
+@keyframes bounceUp { 0%,100% { transform: translateY(0); } 45% { transform: translateY(-7px); } }
+.lv { opacity: .8; font-family: var(--mono); }
+
+/* ---------- buddy widget (desktop-pet style) ---------- */
+.buddy {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 90;
+  width: 62px;
+  height: 62px;
+  border-radius: 16px;
+  background: var(--elev);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  display: grid;
+  place-items: center;
+  animation: fadeSlideIn .3s ease both;
+}
+.buddy:hover { transform: translateY(-2px); transition: transform .15s; }
+.buddy.petted { animation: dizzyWobble .35s ease-in-out 2; }
+.buddy-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  font-size: 11px;
+  background: var(--text);
+  color: var(--bg);
+  padding: 3px 9px;
+  border-radius: 7px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s;
+}
+.buddy:hover .buddy-tip { opacity: 1; }
+.buddy.attention { border-color: #d9a520; box-shadow: 0 0 0 3px rgba(217,165,32,.25), var(--shadow); }
+.buddy.working { border-color: var(--accent); }
