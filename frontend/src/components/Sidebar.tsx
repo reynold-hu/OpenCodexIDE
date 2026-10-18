@@ -237,14 +237,6 @@ export function Sidebar({
         {filtered.length === 0 && <div className="sp-empty">No chats yet</div>}
       </div>
       )}
-
-      <div className="sb-foot">
-        <span className="avatar">{(account.name || "U")[0].toUpperCase()}</span>
-        <span className="who">{account.name}</span>
-        <button className="icon-btn" title="Settings" onClick={onSettings}>
-          <IconGear size={15} />
-        </button>
-      </div>
     </aside>
   );
 }

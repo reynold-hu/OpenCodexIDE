@@ -53,6 +53,11 @@ Projects with rename/delete, Agents roster, Automations center, Apps roadmap).
 | Export | Markdown download; PDF via print stylesheet; detached window (`?thread=&detached=1`) |
 | Shortcuts | ⌘K palette · ⌘N new chat · ⌘S side chat · ⌘P files panel · ctrl+\` terminal · ⌘/ shortcuts · ⌘F find |
 
+## 2b. Nav rail
+
+Seven rail buttons + account avatar; see [NAV-RAIL.md](NAV-RAIL.md) for the
+per-item REA, behaviors and acceptance criteria.
+
 ## 3. Turn lifecycle
 
 ```

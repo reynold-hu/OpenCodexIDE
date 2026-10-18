@@ -171,6 +171,12 @@ async function collectSSE(threadId, ms) {
   await json(`/api/projects/${projectId}/roots`, { method: "DELETE", body: JSON.stringify({ path: extraRoot }) });
   ok("remove project root", !(await json(`/api/projects/${projectId}/roots`)).body.some((r) => r.path === extraRoot));
 
+  // avatar setting roundtrip
+  await put("/api/settings", { account: { name: prev.account?.name || "developer", email: prev.account?.email || "developer@local", avatar: "data:image/png;base64,iVBORw0KGgo=" } });
+  const avGet = await json("/api/settings");
+  ok("avatar setting persists", avGet.body?.account?.avatar === "data:image/png;base64,iVBORw0KGgo=");
+  await put("/api/settings", { account: prev.account });
+
   // passkey status
   const pk = await json("/api/passkey/status");
   ok("passkey status", pk.status === 200 && typeof pk.body.enabled === "boolean");

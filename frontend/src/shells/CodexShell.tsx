@@ -18,7 +18,7 @@ import { CommandPalette } from "../components/CommandPalette";
 import { NavRail, type RailView } from "../components/NavRail";
 import { ThreadMenu } from "../components/ThreadMenu";
 import { SummaryPanel } from "../components/SummaryPanel";
-import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft, IconBranch, IconLink, IconChevron, IconPencil, IconTrash } from "../icons";
+import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft, IconBranch, IconLink, IconChevron, IconPencil, IconTrash, IconFile, IconFolder, IconGear } from "../icons";
 import { apiFetch } from "../api";
 
 
@@ -643,7 +643,23 @@ export default function CodexShell() {
       </div>
 
       <div className="body-row">
-        <NavRail view={railView === "chat" ? "home" : (railView as RailView)} onView={(v) => setRailView(v)} onSettings={() => setSettingsOpen(true)} />
+        <NavRail
+          view={railView === "chat" ? "home" : (railView as RailView)}
+          onView={(v) => setRailView(v)}
+          account={settings.account}
+          onSettings={() => setSettingsOpen(true)}
+          onShortcuts={() => setShortcutsOpen(true)}
+          onThemeToggle={() => saveSettings({ theme: settings.theme === "dark" ? "light" : "dark" })}
+          onReset={async () => {
+            if (!confirm("重置所有 OpenEveryAgent 数据?(工作区文件保留)")) return;
+            await apiFetch("/api/reset", { method: "POST" });
+            location.reload();
+          }}
+          onAvatar={async (dataUrl) => {
+            const s2 = await api.saveSettings({ account: { ...settings.account, avatar: dataUrl } } as any);
+            setSettings(s2);
+          }}
+        />
 
         <Sidebar
           projects={projects}
@@ -836,7 +852,13 @@ export default function CodexShell() {
                   setRefreshToken((r) => r + 1);
                 }}>创建</button>
               </div>
-              {automations.length === 0 && <div className="sp-empty">还没有自动化。在对话菜单里"添加计划任务"，Grok-Bot 风格的定时任务会出现在这里。</div>}
+              {automations.length === 0 && <div className="sp-empty">还没有自动化。用上方表单创建,或在对话菜单里"添加计划任务"。</div>}
+              {automations.length > 0 && (
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  <button className="btn" onClick={async () => { for (const a of automations) await api.patchSchedule(a.threadId, a.id, { enabled: false }); api.automations().then(setAutomations); }}>全部暂停</button>
+                  <button className="btn" onClick={async () => { for (const a of automations) await api.patchSchedule(a.threadId, a.id, { enabled: true }); api.automations().then(setAutomations); }}>全部恢复</button>
+                </div>
+              )}
               <div className="rp-list">
                 {automations.map((a) => {
                   const mins = Math.max(0, Math.round((a.nextRun - Date.now()) / 60000));
@@ -846,7 +868,7 @@ export default function CodexShell() {
                         onClick={async () => { await api.patchSchedule(a.threadId, a.id, { enabled: a.enabled === false }); api.automations().then(setAutomations); }} title="启用/停用" />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13 }}>{a.prompt}</div>
-                        <div className="rp-sub">对话:{a.threadTitle} · 每 {a.everyMinutes} 分钟 · {a.enabled === false ? "已停用" : `${mins} 分钟后运行`}</div>
+                        <div className="rp-sub">对话:{a.threadTitle} · 每 {a.everyMinutes} 分钟 · {a.enabled === false ? "已停用" : `${mins} 分钟后运行`}{a.lastRun ? ` · 上次 ${new Date(a.lastRun).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}</div>
                       </div>
                       <button className="btn" onClick={async () => { await api.patchSchedule(a.threadId, a.id, { runNow: true }); api.automations().then(setAutomations); }}>立即运行</button>
                       <button className="btn" onClick={async () => { await api.unschedule(a.threadId, a.id); api.automations().then(setAutomations); }}>删除</button>
@@ -855,8 +877,25 @@ export default function CodexShell() {
                 })}
               </div>
             </div>
-          ) : railView === "artifacts" || railView === "history" || railView === "projects" || railView === "more" ? (
+          ) : railView === "artifacts" || railView === "history" || railView === "projects" || railView === "more" || railView === "apps" ? (
             <RailPage view={railView} threads={allThreads} archived={archivedThreads} onOpenThread={openThread} onCreateProject={createProject}
+              product="codex"
+              onRenameThread={async (t) => {
+                const v = prompt("重命名对话:", t.title);
+                if (!v) return;
+                await api.updateThread(t.id, { title: v });
+                setThreads((ts) => ts.map((x) => (x.id === t.id ? { ...x, title: v } : x)));
+                setRefreshToken((r) => r + 1);
+              }}
+              onDeleteThread={deleteThread}
+              onSettings={() => setSettingsOpen(true)}
+              onShortcuts={() => setShortcutsOpen(true)}
+              onThemeToggle={() => saveSettings({ theme: settings.theme === "dark" ? "light" : "dark" })}
+              onReset={async () => {
+                if (!confirm("重置所有 OpenEveryAgent 数据?(工作区文件保留)")) return;
+                await apiFetch("/api/reset", { method: "POST" });
+                location.reload();
+              }}
               projects={projects}
               onProject={(p) => { setProject(p); setRailView("chat"); }}
               onRenameProject={async (p) => {
@@ -1105,7 +1144,7 @@ export default function CodexShell() {
   );
 }
 
-function RailPage({ view, threads, archived, onOpenThread, onCreateProject, projects, onProject, onRestore, onRenameProject, onDeleteProject }: {
+function RailPage({ view, threads, archived, onOpenThread, onCreateProject, projects, onProject, onRestore, onRenameProject, onDeleteProject, onRenameThread, onDeleteThread, product, onSettings, onShortcuts, onThemeToggle, onReset }: {
   view: RailView;
   threads: ThreadMeta[];
   archived: ThreadMeta[];
@@ -1116,59 +1155,115 @@ function RailPage({ view, threads, archived, onOpenThread, onCreateProject, proj
   onRestore: (id: string) => void;
   onRenameProject: (p: Project) => void;
   onDeleteProject: (p: Project) => void;
+  onRenameThread: (t: ThreadMeta) => void;
+  onDeleteThread: (id: string) => void;
+  product: string;
+  onSettings: () => void;
+  onShortcuts: () => void;
+  onThemeToggle: () => void;
+  onReset: () => void;
 }) {
-  const [artifacts, setArtifacts] = useState<{ path: string; threadId: string; threadTitle: string; ts: number }[]>([]);
+  const [artifacts, setArtifacts] = useState<{ path: string; threadId: string; threadTitle: string; ts: number; count: number }[]>([]);
   const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState("");
+  const [hist, setHist] = useState<"all" | "active" | "archived">("all");
+  const [version, setVersion] = useState("");
 
   useEffect(() => {
     if (view !== "artifacts") return;
     setLoading(true);
     (async () => {
-      const out: typeof artifacts = [];
+      const map = new Map<string, { path: string; threadId: string; threadTitle: string; ts: number; count: number }>();
       for (const t of threads) {
         try {
           const full = await api.thread(t.id);
           for (const ev of full.events || []) {
-            if (ev.type === "file_change") out.push({ path: ev.path, threadId: t.id, threadTitle: t.title || "chat", ts: ev.ts });
+            if (ev.type !== "file_change") continue;
+            const key = ev.path;
+            const prev = map.get(key);
+            if (prev) { prev.count++; if ((ev.ts || 0) > prev.ts) { prev.ts = ev.ts || 0; prev.threadId = t.id; prev.threadTitle = t.title || "chat"; } }
+            else map.set(key, { path: ev.path, threadId: t.id, threadTitle: t.title || "chat", ts: ev.ts || 0, count: 1 });
           }
         } catch {}
       }
-      out.sort((a, b) => b.ts - a.ts);
-      setArtifacts(out);
+      setArtifacts([...map.values()].sort((a, b) => b.ts - a.ts));
       setLoading(false);
     })();
   }, [view, threads]);
 
+  useEffect(() => {
+    if (view === "more") apiFetch("/api/health").then((r) => r.json()).then((h) => setVersion(h.version || "")).catch(() => {});
+  }, [view]);
+
+  const title =
+    view === "artifacts" ? "Artifacts · 产物" :
+    view === "history" ? "History · 全部对话" :
+    view === "projects" ? "Projects · 项目" :
+    view === "apps" ? "Apps · 产品表面" : "More · 关于与设置";
+
+  const arts = artifacts.filter((a) => a.path.toLowerCase().includes(q.toLowerCase()));
+  const activeList = threads.filter((t) => (t.title || "").toLowerCase().includes(q.toLowerCase()));
+  const archivedList = archived.filter((t) => (t.title || "").toLowerCase().includes(q.toLowerCase()));
+
+  const APPS = [
+    { id: "codex", name: "Codex", desc: "IDE 优先:线程 / 计划 / 命令 / diff / worktree / dots", run: "npm run dev:codex" },
+    { id: "claude", name: "Claude", desc: "对话优先:Recents / Projects / Artifacts 面板", run: "npm run dev:claude" },
+    { id: "muse", name: "Muse", desc: "创作工作室:brief → 作品墙 / Boards / 语音化身", run: "npm run dev:muse" },
+    { id: "grok", name: "Grok Bot", desc: "智能体团队:roster / dispatch / 自动化", run: "npm run dev:grok" },
+    { id: "science", name: "OpenScience", desc: "路线图:算法研究 & 数据分析", run: "—" },
+  ];
+
   return (
     <div className="rail-page">
-      <h2>{view === "artifacts" ? "Artifacts · 产物" : view === "history" ? "History · 全部对话" : view === "projects" ? "Projects · 项目" : "Apps"}</h2>
+      <h2>{title}</h2>
+
       {view === "artifacts" && (
-        loading ? <div className="sp-empty">loading…</div> : artifacts.length === 0 ? <div className="sp-empty">还没有产物。让 Codex 写点东西吧。</div> : (
-          <div className="rp-list">
-            {artifacts.map((a, i) => (
-              <button key={i} className="rp-item" onClick={() => { const t = threads.find((x) => x.id === a.threadId); if (t) onOpenThread(t); }}>
-                <span style={{ flex: 1, fontFamily: "var(--mono)", fontSize: 13 }}>{a.path}</span>
-                <span className="rp-sub">{a.threadTitle} · {new Date(a.ts).toLocaleDateString()}</span>
-              </button>
-            ))}
-          </div>
-        )
+        <>
+          <input className="rail-search" placeholder="搜索产物路径…" value={q} onChange={(e) => setQ(e.target.value)} />
+          {loading ? <div className="sp-empty">loading…</div> : arts.length === 0 ? <div className="sp-empty">还没有产物。让 Codex 写点东西吧。</div> : (
+            <div className="rp-list">
+              {arts.map((a) => (
+                <button key={a.path} className="rp-item" onClick={() => { const t = threads.find((x) => x.id === a.threadId); if (t) onOpenThread(t); }}>
+                  <IconFile size={13} style={{ color: "var(--faint)", flex: "0 0 auto" }} />
+                  <span style={{ flex: 1, fontFamily: "var(--mono)", fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis" }}>{a.path}</span>
+                  {a.count > 1 && <span className="rp-count">×{a.count}</span>}
+                  <span className="rp-sub">{a.threadTitle} · {new Date(a.ts).toLocaleDateString()}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
+
       {view === "history" && (
         <>
-          <div className="rp-list">
-            {threads.map((t) => (
-              <button key={t.id} className="rp-item" onClick={() => onOpenThread(t)}>
-                <span style={{ flex: 1 }}>{t.title || "New chat"}</span>
-                <span className="rp-sub">{new Date(t.updatedAt).toLocaleString()}</span>
+          <div className="rail-filters">
+            {(["all", "active", "archived"] as const).map((f) => (
+              <button key={f} className={`rf ${hist === f ? "on" : ""}`} onClick={() => setHist(f)}>
+                {f === "all" ? "全部" : f === "active" ? "进行中" : "已归档"}
               </button>
             ))}
+            <input className="rail-search" style={{ marginLeft: "auto", maxWidth: 220 }} placeholder="搜索对话…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
-          {archived.length > 0 && (
+          {hist !== "archived" && (
+            <div className="rp-list">
+              {activeList.map((t) => (
+                <div key={t.id} className="rp-item" style={{ cursor: "default" }}>
+                  <span className={`status-dot ${t.status === "running" ? "running" : "idle"}`} style={t.status !== "running" ? { background: "var(--faint)" } : undefined} />
+                  <button style={{ flex: 1, textAlign: "left", minWidth: 0 }} onClick={() => onOpenThread(t)}>{t.title || "New chat"}</button>
+                  <span className="rp-sub">{new Date(t.updatedAt).toLocaleString()}</span>
+                  <button className="icon-btn" title="重命名" onClick={() => onRenameThread(t)}><IconPencil size={12} /></button>
+                  <button className="icon-btn" title="删除" onClick={() => onDeleteThread(t.id)}><IconTrash size={12} /></button>
+                </div>
+              ))}
+              {activeList.length === 0 && <div className="sp-empty">没有进行中的对话</div>}
+            </div>
+          )}
+          {hist !== "active" && archivedList.length > 0 && (
             <>
               <div className="rp-group-label">已归档 · Archived</div>
               <div className="rp-list">
-                {archived.map((t) => (
+                {archivedList.map((t) => (
                   <div key={t.id} className="rp-item" style={{ cursor: "default" }}>
                     <span style={{ flex: 1, color: "var(--muted)" }}>{t.title || "New chat"}</span>
                     <span className="rp-sub">{new Date(t.updatedAt).toLocaleDateString()}</span>
@@ -1180,12 +1275,15 @@ function RailPage({ view, threads, archived, onOpenThread, onCreateProject, proj
           )}
         </>
       )}
+
       {view === "projects" && (
         <div className="rp-list">
           {projects.map((p) => (
             <div key={p.id} className="rp-item" style={{ cursor: "default" }}>
+              <IconFolder size={13} style={{ color: "var(--faint)", flex: "0 0 auto" }} />
               <button style={{ flex: 1, textAlign: "left", minWidth: 0 }} onClick={() => onProject(p)}>{p.name}</button>
               <span className="rp-sub" style={{ fontFamily: "var(--mono)" }}>{p.path}</span>
+              <button className="icon-btn" title="在 Finder 中打开" onClick={() => api.openPath(p.id, "", "open")}>↗</button>
               <button className="icon-btn" title="重命名" onClick={() => onRenameProject(p)}><IconPencil size={12} /></button>
               <button className="icon-btn" title="删除" onClick={() => onDeleteProject(p)}><IconTrash size={12} /></button>
             </div>
@@ -1193,14 +1291,43 @@ function RailPage({ view, threads, archived, onOpenThread, onCreateProject, proj
           <button className="rp-item" onClick={onCreateProject}><IconPlus size={13} /> New project</button>
         </div>
       )}
+
+      {view === "apps" && (
+        <div className="apps-grid">
+          {APPS.map((a) => (
+            <div key={a.id} className={`app-card ${a.id === product ? "current" : ""}`}>
+              <div className="app-card-top">
+                <span className="app-card-name">{a.name}</span>
+                {a.id === product && <span className="app-card-badge">当前</span>}
+              </div>
+              <div className="app-card-desc">{a.desc}</div>
+              <code className="app-card-run">{a.run}</code>
+            </div>
+          ))}
+          <div className="app-card">
+            <div className="app-card-top"><span className="app-card-name">Desktop</span></div>
+            <div className="app-card-desc">Tauri/Electron 封装是 fork 友好的,欢迎社区认领</div>
+            <code className="app-card-run">see README · Fork it</code>
+          </div>
+        </div>
+      )}
+
       {view === "more" && (
         <div className="rp-list">
-          <div className="rp-group-label">Product surfaces</div>
-          <div className="rp-item" style={{ cursor: "default" }}><span style={{ flex: 1 }}>Codex</span><span className="rp-sub">current · IDE-first agent surface</span></div>
-          <div className="rp-item" style={{ cursor: "default" }}><span style={{ flex: 1 }}>Claude / Muse / Grok Bot</span><span className="rp-sub">npm run dev:claude · dev:muse · dev:grok</span></div>
-          <div className="rp-item" style={{ cursor: "default" }}><span style={{ flex: 1 }}>OpenScience</span><span className="rp-sub">roadmap · research & data-analysis surface</span></div>
-          <div className="rp-group-label">Apps</div>
-          <div className="sp-empty">Desktop wrappers (Tauri/Electron) are fork-friendly; see README “Fork it”.</div>
+          <div className="rp-group-label">关于</div>
+          <div className="rp-item" style={{ cursor: "default" }}>
+            <span style={{ flex: 1 }}>OpenEveryAgent IDE</span>
+            <span className="rp-sub">v{version || "0.1.0"} · Codex 表面</span>
+          </div>
+          <div className="rp-group-label">快捷操作</div>
+          <button className="rp-item" onClick={onSettings}><IconGear size={13} /> 打开设置</button>
+          <button className="rp-item" onClick={onShortcuts}><IconPencil size={13} /> 键盘快捷键</button>
+          <button className="rp-item" onClick={onThemeToggle}><IconArrowDown size={13} style={{ transform: "rotate(180deg)" }} /> 切换主题</button>
+          <a className="rp-item" href="https://github.com/reynold-hu/OpenEveryAgentIDE/tree/main/docs" target="_blank" rel="noreferrer">
+            <IconFile size={13} /> 打开项目文档(README / PRODUCT / ROADMAP)
+          </a>
+          <div className="rp-group-label">维护</div>
+          <button className="rp-item" onClick={onReset}><IconTrash size={13} /> 重置所有数据</button>
         </div>
       )}
     </div>

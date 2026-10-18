@@ -833,6 +833,7 @@ setInterval(() => {
     for (const task of t.scheduled || []) {
       if (t.status === "running") continue;
       if (Date.now() >= task.nextRun) {
+        task.lastRun = Date.now();
         task.nextRun = Date.now() + task.everyMinutes * 60000;
         runTurn(state, t, `[scheduled] ${task.prompt}`).then(() => save()).catch(() => {});
       }

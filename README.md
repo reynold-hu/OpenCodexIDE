@@ -194,6 +194,8 @@ as the in-app character (buddy, dots, composer states).
 ## Docs
 
 - [Codex surface — product design & reference](docs/PRODUCT-CODEX.md)
+- [Nav rail — REA & acceptance](docs/NAV-RAIL.md) (7 buttons + account avatar,
+  per-item behavior, acceptance criteria, verification benchmark)
   (information architecture, feature matrix, turn lifecycle, API + SSE,
   state machines, persistence, verification)
 - [Roadmap & TODOs](docs/ROADMAP.md) (OpenScience vision, per-product backlogs)
