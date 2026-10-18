@@ -58,11 +58,14 @@ const PRODUCTS = {
     label: "Anthropic Claude",
     source: "https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest/Claude.dmg",
     async resolve() {
-      // two official channels exist:
+      // three official channels exist:
+      //  docs     = code.claude.com docs redirect (universal, latest; may 403 CLIs)
       //  classic  = osprey bucket (standard Claude desktop, Electron)
-      //  science  = claude.com/download's current public link (Claude Science app)
+      //  science  = claude.com/download's current public link (Claude Science app,
+      //             tracked for the future OpenScience project)
       const candidates = [
-        { channel: "classic", url: this.source, file: "Claude.dmg" },
+        { channel: "docs", url: "https://claude.ai/api/desktop/darwin/universal/dmg/latest/redirect?utm_source=claude_code&utm_medium=docs", file: "Claude.dmg" },
+        { channel: "classic", url: this.source, file: "Claude-Classic.dmg" },
         { channel: "science", url: ARCH === "arm64" ? "https://downloads.claude.ai/claude-science/latest/mac-arm64.dmg" : "https://downloads.claude.ai/claude-science/latest/mac-x64.dmg", file: "Claude-Science.dmg" },
       ];
       for (const c of candidates) {

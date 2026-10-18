@@ -116,12 +116,19 @@ Old builds are pruned automatically after each successful download (`--keep-old`
 | Product | Official latest source (observed from in-app update config) |
 | --- | --- |
 | **OpenAI Codex** | Sparkle feed `https://persistent.oaistatic.com/codex-app-prod/appcast.xml` → `persistent.oaistatic.com/.../ChatGPT-darwin-arm64-<ver>.zip` |
-| **Anthropic Claude** | classic desktop: `https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest/Claude.dmg` (fallback: `downloads.claude.ai/claude-science/latest/…`) |
+| **Anthropic Claude** | docs redirect (latest universal): `https://claude.ai/api/desktop/darwin/universal/dmg/latest/redirect` — falls back to classic (`storage.googleapis.com/osprey-downloads…/nest/Claude.dmg`) and tracks Claude Science separately (`downloads.claude.ai/claude-science/latest/…`) |
 | **Meta Muse** | Sparkle feed `https://www.facebook.com/endo/release/appcast.xml?channel=production` (signed CDN enclosure) |
 | **Cursor Grok Bot** | `https://cursor.com/download/bot` → `downloads.cursor.com/grokbot/stable/darwin-arm64/<ver>/Grok_Bot_<ver>.dmg` |
 
 Workflow each cycle: sync → feature-diff → read the new module names → build
 the missing behaviours into the matching product shell.
+
+### Roadmap — future product shells
+
+- **OpenScience** — a fifth product surface for *Claude Science*
+  (`com.anthropic.operon`, tracked by the upstream sync tool as the `science`
+  channel). New product directory + own backend/API surface, same provider
+  engine. Scoped for a future milestone.
 
 ## Why not just use X?
 
