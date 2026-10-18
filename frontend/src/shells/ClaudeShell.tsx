@@ -34,6 +34,12 @@ export default function ClaudeShell() {
   const [artifact, setArtifact] = useState<{ path: string; content: string } | null>(null);
   const [apVersions, setApVersions] = useState<{ hash: string; ts: number; msg: string }[]>([]);
   const [apVer, setApVer] = useState(0);
+  const [knowledge, setKnowledge] = useState("");
+  const [knowDirty, setKnowDirty] = useState(false);
+  const loadKnowledge = useCallback(async (pid: string) => {
+    setKnowDirty(false);
+    try { const f = await api.file(pid, "AGENTS.md"); setKnowledge(f.content); } catch { setKnowledge(""); }
+  }, []);
   const [apTab, setApTab] = useState<"preview" | "code">("preview");
   const [artifacts, setArtifacts] = useState<any[]>([]);
   const [search, setSearch] = useState("");
@@ -277,8 +283,18 @@ export default function ClaudeShell() {
         {page === "projects" && (
           <div className="cl-page">
             <h2>Projects</h2>
-            {projects.map((p) => <button key={p.id} className={`cl-proj ${project?.id === p.id ? "on" : ""}`} onClick={() => { setProject(p); setPage("home"); }}>{p.name}<span className="rp-sub">{p.path}</span></button>)}
+            {projects.map((p) => <button key={p.id} className={`cl-proj ${project?.id === p.id ? "on" : ""}`} onClick={() => { setProject(p); setPage("projects"); loadKnowledge(p.id); }}>{p.name}<span className="rp-sub">{p.path}</span></button>)}
             <button className="cl-proj new" onClick={async () => { const n = prompt("Project name?"); if (n) { const p = await api.createProject(n); setProjects((ps) => [...ps, p]); setProject(p); } }}>＋ New project</button>
+            {project && (
+              <div className="cl-knowledge">
+                <div className="ck-title">知识 &amp; 指令<span className="ck-sub">AGENTS.md — 每次对话自动注入给 agent</span></div>
+                <textarea rows={8} value={knowledge} placeholder={"# 项目约定\n- 语言/框架:\n- 测试命令:\n- 代码风格:"} onChange={(e) => { setKnowledge(e.target.value); setKnowDirty(true); }} />
+                <div className="ck-actions">
+                  {knowDirty && <span className="ck-dirty">未保存</span>}
+                  <button className="btn primary" disabled={!knowDirty} onClick={async () => { if (project) { await api.saveFile(project.id, "AGENTS.md", knowledge); setKnowDirty(false); } }}>保存</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

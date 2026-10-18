@@ -94,6 +94,7 @@ export interface SwarmAgent {
   shape: string;
   status: "queued" | "working" | "done";
   summary: string;
+  transcript?: { kind: string; text: string }[];
 }
 
 export interface FileChangeItem {

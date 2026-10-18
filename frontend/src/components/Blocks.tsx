@@ -289,7 +289,20 @@ export function SwarmCard({ block }: { block: Extract<Block, { kind: "swarm" }> 
               {a.status === "done" && <span className="sw-st d">✓ 完成</span>}
               <IconChevron size={11} dir={openId === a.agentId ? "up" : "down"} style={{ color: "var(--faint)", marginLeft: "auto" }} />
             </button>
-            {openId === a.agentId && a.summary && <div className="sw-summary"><Markdown text={a.summary} /></div>}
+            {openId === a.agentId && a.summary && <div className="sw-summary">
+              <Markdown text={a.summary} />
+              {a.transcript?.length ? (
+                <details className="sw-tr">
+                  <summary>过程 transcript({a.transcript.length} 步)</summary>
+                  {a.transcript.map((t, ti) => (
+                    <div key={ti} className={`swt swt-${t.kind}`}>
+                      <span className="swt-k">{t.kind === "tool" ? "" : t.kind === "thinking" ? "💭" : t.kind === "error" ? "✕" : "▸"}</span>
+                      <pre>{t.text}</pre>
+                    </div>
+                  ))}
+                </details>
+              ) : null}
+            </div>}
           </div>
         ))}
       </div>

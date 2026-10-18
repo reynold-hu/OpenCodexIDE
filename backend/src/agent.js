@@ -794,6 +794,7 @@ export async function runSwarm(state, thread, task, agentIds) {
   const runOne = async (m) => {
     update(m.id, { status: "working" });
     let summary;
+    const transcript = [{ kind: "task", text: task.slice(0, 400) }];
     if (isRealProvider(provider)) {
       try {
         const messages = [
@@ -805,27 +806,30 @@ export async function runSwarm(state, thread, task, agentIds) {
         for (let i = 0; i < 2; i++) {
           const r = await chatStream({ baseUrl: provider.baseUrl, apiKey: provider.apiKey, model: provider.model, messages, tools: subTools });
           finalText = r.content || finalText;
+          if (r.content) transcript.push({ kind: "thinking", text: r.content.slice(0, 800) });
           if (!r.toolCalls.length) break;
           messages.push({ role: "assistant", content: r.content || null, tool_calls: r.toolCalls.map((t, j) => ({ id: t.id || `w${i}_${j}`, type: "function", function: { name: t.name, arguments: t.args } })) });
           for (const tc of r.toolCalls) {
             let args = {}; try { args = JSON.parse(tc.args || "{}"); } catch {}
             let out;
-            if (tc.name === "run_command") { const r2 = await shellExec(dir, String(args.command || "ls").slice(0, 300), 12000); out = `exit ${r2.code}\n${(r2.stdout + r2.stderr).slice(0, 6000)}`; }
-            else { try { out = readFileLimited(dir, String(args.path || "")).content.slice(0, 8000); } catch (e) { out = `error ${e.message}`; } }
+            if (tc.name === "run_command") { const r2 = await shellExec(dir, String(args.command || "ls").slice(0, 300), 12000); out = `exit ${r2.code}\n${(r2.stdout + r2.stderr).slice(0, 6000)}`; transcript.push({ kind: "tool", text: `$ ${args.command}\n${out.slice(0, 600)}` }); }
+            else { try { out = readFileLimited(dir, String(args.path || "")).content.slice(0, 8000); } catch (e) { out = `error ${e.message}`; } transcript.push({ kind: "tool", text: `read ${args.path}\n${out.slice(0, 400)}` }); }
             messages.push({ role: "tool", tool_call_id: tc.id || "", name: tc.name, content: out });
           }
         }
         summary = finalText || "(无结论)";
       } catch (e) {
         summary = `(调用失败: ${e.message})`;
+        transcript.push({ kind: "error", text: e.message });
       }
     } else {
       await sleep(600 + Math.random() * 1400);
       summary = (SIM_ROLE_OUTPUT[m.id] || ((t) => `**${m.name}** 已完成分析并给出要点。`))(task);
+      transcript.push({ kind: "thinking", text: `以「${m.name}」视角分析任务,核对工作区现状后形成要点。` });
     }
-    update(m.id, { status: "done", summary });
+    update(m.id, { status: "done", summary, transcript });
     const ev = thread.events.find((e) => e.type === "swarm_started" && e.id === id);
-    if (ev) { const a = ev.agents.find((x) => x.agentId === m.id); if (a) { a.status = "done"; a.summary = summary; } }
+    if (ev) { const a = ev.agents.find((x) => x.agentId === m.id); if (a) { a.status = "done"; a.summary = summary; a.transcript = transcript; } }
     return { name: m.name, summary };
   };
 
@@ -930,7 +934,11 @@ export async function runTurn(state, thread, prompt, req_agents) {  const provid
         dir,
         providerID: provider.id,
         modelID: thread.model || provider.model || state.settings.model,
-        prompt: await expandMentions(dir, prompt),
+        prompt: await (async () => {
+          let knowledge = "";
+          try { const f = readFileLimited(dir, "AGENTS.md"); if (!f.truncated && f.content.trim()) knowledge = `[项目知识 AGENTS.md — 必须遵守]\n${f.content.slice(0, 4000)}\n\n`; } catch {}
+          return knowledge + (await expandMentions(dir, prompt));
+        })(),
         threadId: thread.id,
         checkpoint,
         getSteers: () => drainSteer(thread.id),
