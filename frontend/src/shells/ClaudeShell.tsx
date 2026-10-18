@@ -32,6 +32,8 @@ export default function ClaudeShell() {
   const [mode, setMode] = useState(MODES[2]);
   const [modeOpen, setModeOpen] = useState(false);
   const [artifact, setArtifact] = useState<{ path: string; content: string } | null>(null);
+  const [apVersions, setApVersions] = useState<{ hash: string; ts: number; msg: string }[]>([]);
+  const [apVer, setApVer] = useState(0);
   const [apTab, setApTab] = useState<"preview" | "code">("preview");
   const [artifacts, setArtifacts] = useState<any[]>([]);
   const [search, setSearch] = useState("");
@@ -120,7 +122,19 @@ export default function ClaudeShell() {
 
   const openArtifact = async (path: string) => {
     if (!project) return;
-    try { const f = await api.file(project.id, path); setApTab(path.endsWith(".html") ? "preview" : "code"); setArtifact({ path, content: f.content }); } catch {}
+    try {
+      const f = await api.file(project.id, path);
+      setApTab(path.endsWith(".html") ? "preview" : "code");
+      setArtifact({ path, content: f.content });
+      let vers: any[] = [];
+      try { vers = (await fetch(`/api/projects/${project.id}/history?path=${encodeURIComponent(path)}`).then((r) => r.json())).entries || []; } catch {}
+      setApVersions(vers); setApVer(0);
+    } catch {}
+  };
+  const gotoVersion = async (i: number) => {
+    if (!artifact || !project || !apVersions[i]) return;
+    setApVer(i);
+    try { const f = await api.file(project.id, artifact.path, undefined, apVersions[i].hash); setArtifact({ ...artifact, content: f.content }); } catch {}
   };
 
   const startDictation = () => {

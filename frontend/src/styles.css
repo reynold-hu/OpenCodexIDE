@@ -1491,3 +1491,14 @@ pre.codeblock {
 .cr-del { opacity: 0; color: var(--faint); padding: 2px; }
 .gk-item:hover .cr-del, .cl-recent:hover .cr-del { opacity: 1; }
 .cr-del:hover { color: var(--accent-strong); }
+
+/* ---------- templates / versions ---------- */
+.gk-tpl-label { font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--faint); margin: 4px 0 8px; font-family: var(--font); }
+.gk-templates { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; margin-bottom: 18px; }
+.gk-tpl { display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; text-align: left; font-family: var(--font); }
+.gk-tpl:hover { background: var(--hover); border-color: var(--accent); }
+.gt-ico { font-size: 18px; }
+.gt-name { font-size: 13px; font-weight: 700; }
+.gt-desc { font-size: 11px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.gt-every { margin-left: auto; font-size: 10.5px; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+.ap-ver { display: inline-flex; align-items: center; gap: 2px; }

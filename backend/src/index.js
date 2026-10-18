@@ -32,7 +32,7 @@ app.use((req, res, next) => {
   const isIdeThread = /\/api\/threads\/[^/]+\/(worktree|undo|restore)/.test(req.path) || req.path === "/api/outputs";
   const isStatic = req.path.startsWith("/preview/") || req.path.startsWith("/shots/");
   const fileRead = seg === "file" && req.method === "GET";
-  const allowedForChat = ["claude", "muse"].includes(PRODUCT) && (isStatic || fileRead || seg === "file" && req.method === "POST");
+  const allowedForChat = ["claude", "muse"].includes(PRODUCT) && (isStatic || fileRead || seg === "file" && req.method === "POST" || seg === "history" && req.method === "GET" || req.path.match(/^\/api\/projects\/[^/]+\/file\?rev=/));
   if ((isFs || isIdeThread || isStatic) && PRODUCT !== "codex" && !allowedForChat) {
     return res.status(404).json({ error: `route not available in ${PRODUCT}` });
   }
@@ -553,13 +553,36 @@ app.get("/api/projects/:id/tree", (req, res) => {
   if (!dir) return;
   res.json(tree(dir));
 });
-app.get("/api/projects/:id/file", (req, res) => {
+app.get("/api/projects/:id/file", async (req, res) => {
   const dir = projectDir(req, res);
   if (!dir) return;
+  const rel = String(req.query.path || "");
+  const rev = String(req.query.rev || "");
   try {
-    res.json(readFileLimited(dir, String(req.query.path || "")));
+    if (rev) {
+      if (!/^[0-9a-f]{7,40}$/.test(rev)) return res.status(400).json({ error: "bad rev" });
+      const { stdout } = await execFilePromise("git", ["show", `${rev}:${rel}`], { cwd: dir, maxBuffer: 2 * 1024 * 1024 });
+      return res.json({ content: stdout, truncated: false, size: stdout.length });
+    }
+    res.json(readFileLimited(dir, rel));
   } catch (e) {
     res.status(400).json({ error: e.message });
+  }
+});
+app.get("/api/projects/:id/history", async (req, res) => {
+  const dir = projectDir(req, res);
+  if (!dir) return;
+  const rel = String(req.query.path || "");
+  if (!rel) return res.status(400).json({ error: "path required" });
+  try {
+    const { stdout } = await execFilePromise("git", ["log", "--format=%H\t%ct\t%s", "--", rel], { cwd: dir });
+    const entries = stdout.split("\n").filter(Boolean).map((l) => {
+      const [hash, ts, msg] = l.split("\t");
+      return { hash, ts: Number(ts) * 1000, msg };
+    });
+    res.json({ entries });
+  } catch (e) {
+    res.json({ entries: [], error: e.message });
   }
 });
 app.get("/api/projects/:id/git", async (req, res) => {

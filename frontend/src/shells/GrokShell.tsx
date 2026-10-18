@@ -12,6 +12,13 @@ import { IconGear, IconX, IconPlus, IconTrash, IconPencil, IconStop } from "../i
 
 type Page = "tasks" | "dispatch" | "team" | "automations" | "cloud";
 
+const BOT_TEMPLATES = [
+  { icon: "🌅", name: "每日晨报", every: 1440, prompt: "汇总工作区昨日变更与待办,生成中文晨报" },
+  { icon: "🔍", name: "代码巡检", every: 720, prompt: "检查工作区代码:lint/测试/明显 bug,输出巡检报告" },
+  { icon: "📊", name: "数据快照", every: 60, prompt: "统计工作区文件与 git 状态,输出数据快照" },
+  { icon: "📝", name: "周报草稿", every: 10080, prompt: "回顾本周所有变更与任务,起草中文周报(成果/风险/计划)" },
+];
+
 export default function GrokShell() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [models, setModels] = useState<any[]>([]);
@@ -210,6 +217,26 @@ export default function GrokShell() {
         {page === "automations" && (
           <div className="gk-page">
             <h2>自动化 · Automations</h2>
+            <div className="gk-tpl-label">Bot 模板 · 一键创建</div>
+            <div className="gk-templates">
+              {BOT_TEMPLATES.map((t) => (
+                <button key={t.name} className="gk-tpl" onClick={async () => {
+                  if (!project) return;
+                  const th = await api.createThread(project.id, "grok");
+                  await api.updateThread(th.id, { title: `⏰ ${t.name}` });
+                  await api.schedule(th.id, t.prompt, t.every);
+                  api.automations().then(setAutomations);
+                  api.threads(project.id, "grok").then(setThreads);
+                }}>
+                  <span className="gt-ico">{t.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="gt-name">{t.name}</div>
+                    <div className="gt-desc">{t.prompt}</div>
+                  </div>
+                  <span className="gt-every">每 {t.every} 分</span>
+                </button>
+              ))}
+            </div>
             <div className="gk-auto-form">
               <input placeholder="任务内容(到点自动派给团队)…" value={autoForm.prompt} onChange={(e) => setAutoForm({ ...autoForm, prompt: e.target.value })} />
               <input className="gk-sched-min" type="number" min="5" value={autoForm.every} onChange={(e) => setAutoForm({ ...autoForm, every: e.target.value })} />

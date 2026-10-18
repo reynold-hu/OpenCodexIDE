@@ -208,7 +208,14 @@ export default function MuseShell() {
           <div className="modal muse-detail" onMouseDown={(e) => e.stopPropagation()}>
             <div className="modal-head"><h2>{detail.path}</h2>
               <button className="btn" onClick={() => window.open(detail.url, "_blank")}>新窗口</button>
-              <button className="btn" onClick={() => { setInput(""); setDetail(null); setPage("create"); }}>再做一个</button>
+              <button className="btn" onClick={async () => {
+                  setDetail(null); setPage("create");
+                  if (thread) {
+                    const full = await api.thread(thread.id);
+                    const first = (full.events || []).find((e: any) => e.type === "turn_started");
+                    if (first) setInput(String(first.prompt || "").replace(/^(网页|看板|文案|方案)需求:/, ""));
+                  }
+                }}> remix ↻</button>
               <button className="icon-btn" onClick={() => setDetail(null)}><IconX size={15} /></button></div>
             {detail.url && <iframe className="md-frame" src={detail.url} title="creation" sandbox="allow-scripts allow-same-origin" />}
           </div>
@@ -220,6 +227,7 @@ export default function MuseShell() {
           <div className="modal muse-detail" onMouseDown={(e) => e.stopPropagation()}>
             <div className="modal-head"><h2>{fileView.path}</h2>
               <button className="btn" onClick={() => navigator.clipboard.writeText(fileView.content)}>复制</button>
+              <button className="btn" onClick={() => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([fileView.content])); a.download = fileView.path.split("/").pop() || "file"; a.click(); }}>导出</button>
               <button className="icon-btn" onClick={() => setFileView(null)}><IconX size={15} /></button></div>
             <pre className="ap-doc" style={{ fontFamily: "var(--mono)", fontSize: 12, overflow: "auto", maxHeight: "60vh", padding: 16 }}>{fileView.content}</pre>
           </div>
