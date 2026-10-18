@@ -197,6 +197,9 @@ as the in-app character (buddy, dots, composer states).
   (information architecture, feature matrix, turn lifecycle, API + SSE,
   state machines, persistence, verification)
 - [Roadmap & TODOs](docs/ROADMAP.md) (OpenScience vision, per-product backlogs)
+- [Character packs & generation prompts](docs/CHARACTERS.md) — drop your own
+  generated mascot art into `frontend/public/characters/<product>/`; the app
+  auto-detects it and falls back to the procedural characters when absent
 - End-to-end acceptance: `node tools/e2e-codex.mjs` (29 checks)
 
 ## Features

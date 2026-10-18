@@ -1890,3 +1890,6 @@ pre.codeblock {
   --shadow: 0 4px 18px rgba(20,20,20,.07);
 }
 [data-theme] body, body { transition: background .25s ease, color .25s ease; }
+
+/* ---------- character packs (user-generated original assets) ---------- */
+.char-pack-img { display: block; flex: 0 0 auto; image-rendering: -webkit-optimize-contrast; }

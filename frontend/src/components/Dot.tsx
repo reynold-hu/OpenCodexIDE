@@ -1,4 +1,5 @@
 import React from "react";
+import { useCharacterPack, PackImage, DOT_TINTS } from "./CharacterPack";
 
 /* OpenAI-Dots-style character orb — mechanism observed from the app's Dot module
    (gradient pairs + inner-shadow filter stack + spring states); implementation,
@@ -17,6 +18,15 @@ const PALETTES: Record<DotVariant, [string, string, string]> = {
 };
 
 export function Dot({ variant = "default", size = 22, state = "idle", ring = false }: { variant?: DotVariant; size?: number; state?: "sleeping" | "idle" | "running" | "jumping"; ring?: boolean }) {
+  const pack = useCharacterPack("dots");
+  if (pack?.states) {
+    const map: Record<string, string> = { sleeping: "sleep", idle: "idle", running: "working", jumping: "celebrate" };
+    return (
+      <span className={`dot3d st-${state} ${ring ? "ring" : ""}`} style={{ width: size, height: size }}>
+        <PackImage product="dots" pack={pack} state={map[state] || "idle"} size={size} tint={DOT_TINTS[variant]} />
+      </span>
+    );
+  }
   const [c0, c1, c2] = PALETTES[variant] || PALETTES.default;
   const id = React.useId().replace(/:/g, "");
   return (

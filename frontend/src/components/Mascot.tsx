@@ -1,5 +1,6 @@
 import React from "react";
 import type { MascotState } from "../lib/mascotState";
+import { useCharacterPack, PackImage } from "./CharacterPack";
 
 export type { MascotState };
 
@@ -7,6 +8,8 @@ export type { MascotState };
    artwork & implementation 100% ours; rendered via CSS keyframes like the
    emotion/sand approach, state inputs like Rive). */
 export function Mascot({ mode, state = "idle", size = 96, level = 0 }: { mode: string; state?: MascotState; size?: number; level?: number }) {
+  const pack = useCharacterPack(mode);
+  if (pack?.states) return <PackImage product={mode} pack={pack} state={state} size={size} />;
   const cls = `mascot m-${mode} st-${state}`;
   if (mode === "grok") return <GrokBot state={state} size={size} cls={cls} level={level} />;
   if (mode === "muse") return <MuseHatch state={state} size={size} cls={cls} level={level} />;
