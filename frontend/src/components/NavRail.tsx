@@ -20,7 +20,7 @@ export function NavRail({ view, onView, onSettings }: { view: RailView; onView: 
           {it.icon}
         </button>
       ))}
-      <button className="rail-btn" title="More" onClick={onSettings}>
+      <button className="rail-btn" title="More" onClick={() => onView("more")}>
         <IconDots size={17} />
       </button>
       <span className="rail-sep" />

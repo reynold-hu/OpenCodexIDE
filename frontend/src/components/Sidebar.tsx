@@ -26,6 +26,7 @@ export function Sidebar({
   onThread,
   onNewChat,
   onDeleteThread,
+  onRenameThread,
   onSettings,
   account,
   mode,
@@ -44,6 +45,7 @@ export function Sidebar({
   onThread: (t: ThreadMeta) => void;
   onNewChat: () => void;
   onDeleteThread: (id: string) => void;
+  onRenameThread: (t: ThreadMeta) => void;
   onSettings: () => void;
   account: { name: string; email: string };
   mode: string;
@@ -187,6 +189,16 @@ export function Sidebar({
               <div key={t.id} className={`thread-item ${t.id === currentThreadId ? "active" : ""}`} onClick={() => onThread(t)}>
                 <span className={`status-dot ${t.status === "running" ? "running" : "idle"}`} />
                 <span className="t-title">{t.title || "New chat"}{hits && hits.find((h) => h.id === t.id)?.sample?.[0] ? <span className="t-hit">…{hits.find((h) => h.id === t.id)!.sample[0].slice(0, 24)}</span> : null}</span>
+                <button
+                  className="t-del"
+                  title="重命名"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRenameThread(t);
+                  }}
+                >
+                  <IconPencil size={12} />
+                </button>
                 <button
                   className="t-del"
                   title="Delete"

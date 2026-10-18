@@ -18,7 +18,7 @@ import { CommandPalette } from "../components/CommandPalette";
 import { NavRail, type RailView } from "../components/NavRail";
 import { ThreadMenu } from "../components/ThreadMenu";
 import { SummaryPanel } from "../components/SummaryPanel";
-import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft, IconBranch, IconLink, IconChevron } from "../icons";
+import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft, IconBranch, IconLink, IconChevron, IconPencil, IconTrash } from "../icons";
 import { apiFetch } from "../api";
 
 export const MODE_STRINGS: Record<string, { title: string; ask: string; chips: string[] }> = {
@@ -73,6 +73,7 @@ export default function CodexShell() {
   const [findQ, setFindQ] = useState("");
   const [findIdx, setFindIdx] = useState(0);
   const [automations, setAutomations] = useState<any[]>([]);
+  const [autoForm, setAutoForm] = useState({ prompt: "", every: "60" });
   const esRef = useRef<EventSource | null>(null);
   const approvalDiffs = useRef<Record<string, string>>({});
   const machineRef = useRef<{ notifyCompleted: () => void; notifyCancelled: () => void; notifyApproved: () => void }>({ notifyCompleted: () => {}, notifyCancelled: () => {}, notifyApproved: () => {} });
@@ -664,6 +665,13 @@ export default function CodexShell() {
           onThread={openThread}
           onNewChat={newChat}
           onDeleteThread={deleteThread}
+          onRenameThread={async (t) => {
+            const v = prompt("重命名对话:", t.title);
+            if (!v) return;
+            await api.updateThread(t.id, { title: v });
+            setThreads((ts) => ts.map((x) => (x.id === t.id ? { ...x, title: v } : x)));
+            if (thread?.id === t.id) setThread({ ...thread, title: v });
+          }}
           onSettings={() => setSettingsOpen(true)}
           account={settings.account}
           mode={conversationMode}
@@ -824,6 +832,20 @@ export default function CodexShell() {
           {railView === "automations" ? (
             <div className="rail-page">
               <h2>Automations · 自动化中心</h2>
+              <div className="gk-auto-form" style={{ marginBottom: 14 }}>
+                <input placeholder="定时任务内容(到点自动发给 agent)…" value={autoForm.prompt} onChange={(e) => setAutoForm({ ...autoForm, prompt: e.target.value })} />
+                <input className="gk-sched-min" type="number" min="5" value={autoForm.every} onChange={(e) => setAutoForm({ ...autoForm, every: e.target.value })} />
+                <span className="gk-sched-unit">分钟</span>
+                <button className="btn primary" disabled={!autoForm.prompt.trim() || !project} onClick={async () => {
+                  if (!project) return;
+                  const t = await api.createThread(project.id, "codex");
+                  await api.updateThread(t.id, { title: `⏰ ${autoForm.prompt.slice(0, 24)}` });
+                  await api.schedule(t.id, autoForm.prompt.trim(), Number(autoForm.every) || 60);
+                  setAutoForm({ prompt: "", every: "60" });
+                  api.automations().then(setAutomations);
+                  setRefreshToken((r) => r + 1);
+                }}>创建</button>
+              </div>
               {automations.length === 0 && <div className="sp-empty">还没有自动化。在对话菜单里"添加计划任务"，Grok-Bot 风格的定时任务会出现在这里。</div>}
               <div className="rp-list">
                 {automations.map((a) => {
@@ -846,7 +868,24 @@ export default function CodexShell() {
           ) : railView === "agents" ? (
             <AgentRoster />
           ) : railView === "artifacts" || railView === "history" || railView === "projects" || railView === "more" ? (
-            <RailPage view={railView} threads={allThreads} archived={archivedThreads} onOpenThread={openThread} onCreateProject={createProject} projects={projects} onProject={(p) => { setProject(p); setRailView("chat"); }} onRestore={async (id) => { await api.updateThread(id, { archived: false } as any); setRefreshToken((r) => r + 1); }} />
+            <RailPage view={railView} threads={allThreads} archived={archivedThreads} onOpenThread={openThread} onCreateProject={createProject}
+              projects={projects}
+              onProject={(p) => { setProject(p); setRailView("chat"); }}
+              onRenameProject={async (p) => {
+                const name = prompt("重命名项目:", p.name);
+                if (!name) return;
+                const upd = await api.updateProject(p.id, name);
+                setProjects((ps) => ps.map((x) => (x.id === upd.id ? upd : x)));
+                if (project?.id === upd.id) setProject(upd);
+              }}
+              onDeleteProject={async (p) => {
+                if (!confirm(`删除项目 "${p.name}"?其会话会一并删除(工作区文件保留)。`)) return;
+                await api.deleteProject(p.id);
+                const rest = projects.filter((x) => x.id !== p.id);
+                setProjects(rest);
+                if (project?.id === p.id) { setProject(rest[0] || null); setThread(null); setBlocks([]); }
+              }}
+              onRestore={async (id) => { await api.updateThread(id, { archived: false } as any); setRefreshToken((r) => r + 1); }} />
           ) : !thread && blocks.length === 0 ? (
             <div className="landing">
               <Mascot mode="codex" state={machine.state} size={92} level={machine.level} />
@@ -1082,7 +1121,7 @@ export default function CodexShell() {
   );
 }
 
-function RailPage({ view, threads, archived, onOpenThread, onCreateProject, projects, onProject, onRestore }: {
+function RailPage({ view, threads, archived, onOpenThread, onCreateProject, projects, onProject, onRestore, onRenameProject, onDeleteProject }: {
   view: RailView;
   threads: ThreadMeta[];
   archived: ThreadMeta[];
@@ -1091,6 +1130,8 @@ function RailPage({ view, threads, archived, onOpenThread, onCreateProject, proj
   projects: Project[];
   onProject: (p: Project) => void;
   onRestore: (id: string) => void;
+  onRenameProject: (p: Project) => void;
+  onDeleteProject: (p: Project) => void;
 }) {
   const [artifacts, setArtifacts] = useState<{ path: string; threadId: string; threadTitle: string; ts: number }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1158,10 +1199,12 @@ function RailPage({ view, threads, archived, onOpenThread, onCreateProject, proj
       {view === "projects" && (
         <div className="rp-list">
           {projects.map((p) => (
-            <button key={p.id} className="rp-item" onClick={() => onProject(p)}>
-              <span style={{ flex: 1 }}>{p.name}</span>
+            <div key={p.id} className="rp-item" style={{ cursor: "default" }}>
+              <button style={{ flex: 1, textAlign: "left", minWidth: 0 }} onClick={() => onProject(p)}>{p.name}</button>
               <span className="rp-sub" style={{ fontFamily: "var(--mono)" }}>{p.path}</span>
-            </button>
+              <button className="icon-btn" title="重命名" onClick={() => onRenameProject(p)}><IconPencil size={12} /></button>
+              <button className="icon-btn" title="删除" onClick={() => onDeleteProject(p)}><IconTrash size={12} /></button>
+            </div>
           ))}
           <button className="rp-item" onClick={onCreateProject}><IconPlus size={13} /> New project</button>
         </div>
@@ -1179,8 +1222,13 @@ function RailPage({ view, threads, archived, onOpenThread, onCreateProject, proj
         </div>
       )}
       {view === "more" && (
-        <div className="sp-empty">
-          Desktop ports for Windows &amp; macOS are on the roadmap — fork the repo and wrap this UI in Tauri/Electron. See README “Fork it”.
+        <div className="rp-list">
+          <div className="rp-group-label">Product surfaces</div>
+          <div className="rp-item" style={{ cursor: "default" }}><span style={{ flex: 1 }}>Codex</span><span className="rp-sub">current · IDE-first agent surface</span></div>
+          <div className="rp-item" style={{ cursor: "default" }}><span style={{ flex: 1 }}>Claude / Muse / Grok Bot</span><span className="rp-sub">npm run dev:claude · dev:muse · dev:grok</span></div>
+          <div className="rp-item" style={{ cursor: "default" }}><span style={{ flex: 1 }}>OpenScience</span><span className="rp-sub">roadmap · research & data-analysis surface</span></div>
+          <div className="rp-group-label">Apps</div>
+          <div className="sp-empty">Desktop wrappers (Tauri/Electron) are fork-friendly; see README “Fork it”.</div>
         </div>
       )}
     </div>
