@@ -1,33 +1,21 @@
 import React, { useEffect, useState } from "react";
 
-/* Startup-screen brand mark.
-   Tries user-provided local assets served from ~/.open-every-agent/brand/<product>.png
-   (or .svg) — these live outside the repo and are never committed. Falls back to
-   our original mark when absent. Third-party logos remain trademarks of their owners. */
+/* Startup brand mark — the official OpenEveryAgent logo (our own asset).
+   Falls back to the product's original mascot if the image fails to load. */
 export function BrandMark({ product, size = 92, fallback }: { product: string; size?: number; fallback: React.ReactNode }) {
   const [failed, setFailed] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [ext, setExt] = useState<"png" | "svg">("png");
-
-  useEffect(() => {
-    setFailed(false);
-    setLoaded(false);
-    setExt("png");
-  }, [product]);
-
+  useEffect(() => setFailed(false), []);
   if (failed) return <>{fallback}</>;
   return (
     <div className="bm-wrap" style={{ width: size, height: size }}>
       <img
-        src={`/brand/${product}.${ext}`}
-        alt=""
+        src="/logo.png"
+        alt="OpenEveryAgent"
         width={size}
         height={size}
-        style={{ display: loaded ? "block" : "none", borderRadius: Math.round(size * 0.22), objectFit: "contain" }}
-        onLoad={() => setLoaded(true)}
-        onError={() => { if (ext === "png") setExt("svg"); else setFailed(true); }}
+        style={{ objectFit: "contain", borderRadius: Math.round(size * 0.18) }}
+        onError={() => setFailed(true)}
       />
-      {!loaded && <span className="bm-ghost" style={{ opacity: 0 }}>{fallback}</span>}
     </div>
   );
 }

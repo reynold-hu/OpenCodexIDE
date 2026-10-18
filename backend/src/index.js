@@ -21,8 +21,6 @@ const execFilePromise = _promisify(execFile);
 const app = express();
 const PORT = process.env.PORT || PORTS[PRODUCT];
 const SHOTS_DIR = path.join(DATA_HOME, "shots");
-const BRAND_DIR = path.join(os.homedir(), ".open-every-agent", "brand");
-fs.mkdirSync(BRAND_DIR, { recursive: true });
 fs.mkdirSync(SHOTS_DIR, { recursive: true });
 
 app.use(cors());
@@ -32,7 +30,7 @@ app.use(express.json({ limit: "16mb" }));
 app.use((req, res, next) => {
   if (!state.settings.passkey?.enabled) return next();
   if (req.path.startsWith("/api/passkey/") || req.path === "/api/health") return next();
-  if (req.path.startsWith("/preview/") || req.path.startsWith("/shots/") || req.path.startsWith("/brand/")) return next();
+  if (req.path.startsWith("/preview/") || req.path.startsWith("/shots/")) return next();
   const token = String(req.header("x-oea-token") || req.query.token || "");
   if (checkToken(token)) return next();
   return res.status(401).json({ error: "locked", code: "passkey-required" });
@@ -728,8 +726,6 @@ app.post("/api/projects/:id/screenshot", async (req, res) => {
   });
 });
 app.use("/shots", express.static(SHOTS_DIR));
-// local-only brand assets (user-provided app icons; never part of the repo)
-app.use("/brand", express.static(BRAND_DIR));
 
 // ---------- background processes ----------
 app.get("/api/projects/:id/processes", (req, res) => {

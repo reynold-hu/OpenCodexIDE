@@ -125,10 +125,10 @@ turn_complete(usage) · turn_cancelled · turn_error`.
 
 ## Branding
 
-Startup screens resolve a brand mark as: `/brand/<product>.png` → `.svg` →
-original OpenEveryAgent mark. Files are served from
-`~/.open-every-agent/brand/` (local, git-excluded). No third-party brand
-assets are distributed with this repository.
+Startup screens display the official OpenEveryAgent logo
+(`frontend/public/logo.png`, our own asset). Product mascots remain in-app
+(buddy corner pet, dot orbs, composer states). No third-party brand assets are
+distributed with this repository.
 
 ## 6. Persistence
 
