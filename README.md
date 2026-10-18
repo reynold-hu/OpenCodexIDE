@@ -200,6 +200,8 @@ as the in-app character (buddy, dots, composer states).
 - [Character packs & generation prompts](docs/CHARACTERS.md) — drop your own
   generated mascot art into `frontend/public/characters/<product>/`; the app
   auto-detects it and falls back to the procedural characters when absent
+- [Brand system](docs/BRAND.md) — honest assessment of the current logo, three
+  original square-mark candidates (`docs/brand/`), palette, typography, usage
 - End-to-end acceptance: `node tools/e2e-codex.mjs` (29 checks)
 
 ## Features
