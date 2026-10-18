@@ -18,6 +18,7 @@ const PALETTES: Record<DotVariant, [string, string, string]> = {
 };
 
 export function Dot({ variant = "default", size = 22, state = "idle", ring = false }: { variant?: DotVariant; size?: number; state?: "sleeping" | "idle" | "running" | "jumping"; ring?: boolean }) {
+  const id = React.useId().replace(/:/g, "");
   const pack = useCharacterPack("dots");
   if (pack?.states) {
     const map: Record<string, string> = { sleeping: "sleep", idle: "idle", running: "working", jumping: "celebrate" };
@@ -28,7 +29,6 @@ export function Dot({ variant = "default", size = 22, state = "idle", ring = fal
     );
   }
   const [c0, c1, c2] = PALETTES[variant] || PALETTES.default;
-  const id = React.useId().replace(/:/g, "");
   return (
     <span className={`dot3d st-${state} ${ring ? "ring" : ""}`} style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox="0 0 56 56" fill="none">
