@@ -6,6 +6,7 @@ full side-panel toolkit. This document is the source of truth for its design,
 flows, API and verification.
 
 Run it: `npm run dev:codex` → http://localhost:5175 (API :8787).
+Default theme is **light** across all four products (Codex accent `#10a37f`).
 State: `~/.open-every-agent/codex/`.
 
 ---
@@ -36,7 +37,7 @@ Projects with rename/delete, Agents roster, Automations center, Apps roadmap).
 | Area | Features |
 | --- | --- |
 | Threads | SSE streaming; plan cards; command cards (risk badges, live output, expiry countdown); merged file cards (undo, view changes, expand, open-with); preview cards (open-with menu, Headless-Chrome screenshot); process cards (stop/log); sources; subagents; swarm cards; cloud-PC placeholder; annotations; error/cancel states |
-| Conversation modes | **Codex** (all cards) · **ChatGPT Work** (plans/artifacts, commands folded) · **ChatGPT** (prose only, activity folded) |
+| Conversation surfaces | Switched from the **sidebar header product menu** (logo + surface name + chevron) — not a segmented bar: **ChatGPT** (prose, activity folded) · **ChatGPT Work** (plans/artifacts kept, commands folded) · **Codex** (all cards). Surface switches cross-fade the thread. |
 | Dots | 7 gradient variants; sidebar dots row + new dot; Compact/Detailed conversation; character preview + default color in settings; onboarding flight animation; voice call (Web Speech placeholder) |
 | Input | model pill · approvals pill (auto/ask/read-only) · reasoning pill · team-mode toggle · @file autocomplete · slash commands (/status /model /init /compact /team) · attachments · paste-image upload · mic dictation · stop · steer queue while running |
 | Message actions | copy · read-aloud · 👍👎 · edit & re-run · revert-to-checkpoint · follow-up pills · ⌘F in-thread find · scroll-to-bottom |

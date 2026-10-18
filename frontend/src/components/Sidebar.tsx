@@ -4,6 +4,12 @@ import type { Project, ThreadMeta } from "../types";
 import { IconPlus, IconSearch, IconGear, IconTrash, IconFolder, IconChevron, IconPencil } from "../icons";
 import { Dot, dotStateFrom } from "./Dot";
 
+const BRAND_MODES: { id: string; label: string; desc: string }[] = [
+  { id: "chatgpt", label: "ChatGPT", desc: "散文式对话,工具细节折叠" },
+  { id: "chatgpt_work", label: "ChatGPT Work", desc: "保留计划与产物,隐藏命令" },
+  { id: "codex", label: "Codex", desc: "完整任务卡 / 命令 / diff" },
+];
+
 function groupLabel(ts: number, now: number) {
   const d = new Date(ts);
   const today = new Date(now);
@@ -57,6 +63,7 @@ export function Sidebar({
 }) {
   const [search, setSearch] = useState("");
   const [scope, setScope] = useState<"local" | "cloud">("local");
+  const [brandOpen, setBrandOpen] = useState(false);
   const [projOpen, setProjOpen] = useState(false);
   const [hits, setHits] = useState<{ id: string; title: string; sample: string[] }[] | null>(null);
 
@@ -89,18 +96,32 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="sb-head">
-        <div className="sb-brand">
-          <span className="name">OpenEveryAgent</span>
-          <button className="icon-btn" title="New chat" onClick={onNewChat}>
-            <IconPlus size={15} />
-          </button>
-        </div>
-        <div className="mode-selector">
-          {([["chatgpt", "ChatGPT"], ["chatgpt_work", "ChatGPT Work"], ["codex", "Codex"]] as const).map(([id, label]) => (
-            <button key={id} className={mode === id ? "on" : ""} onClick={() => onMode(id)} title={id === "codex" ? "Codex 模式:完整任务卡/命令/diff" : id === "chatgpt" ? "ChatGPT 模式:散文式对话,隐藏工具细节" : "ChatGPT Work:保留计划与产物,隐藏命令"}>
-              {label}
-            </button>
-          ))}
+        <div className="sb-brand-wrap">
+          <div className="sb-brand" onClick={() => setBrandOpen(!brandOpen)} role="button" tabIndex={0} title="切换产品表面">
+            <img src="/logo.png" alt="" className="brand-logo" />
+            <span className="brand-text">
+              <span className="name">OpenEveryAgent</span>
+              <span className="brand-surface">{BRAND_MODES.find((m) => m.id === mode)?.label || "Codex"}</span>
+            </span>
+            <IconChevron size={12} dir={brandOpen ? "up" : "down"} style={{ color: "var(--faint)" }} />
+            <span className="icon-btn" title="New chat" onClick={(e) => { e.stopPropagation(); onNewChat(); }}>
+              <IconPlus size={15} />
+            </span>
+          </div>
+          {brandOpen && (
+            <div className="brand-menu" onMouseLeave={() => setBrandOpen(false)}>
+              <div className="menu-label">产品表面 · Surface</div>
+              {BRAND_MODES.map((m) => (
+                <button key={m.id} className="menu-item" onClick={() => { onMode(m.id); setBrandOpen(false); }}>
+                  <span className="mi-check">{mode === m.id ? <IconCheck size={14} /> : null}</span>
+                  <span className="mi-body">
+                    <div className="mi-title">{m.label}</div>
+                    <div className="mi-desc">{m.desc}</div>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="dots-row">
           <span className="dots-label">Dots</span>

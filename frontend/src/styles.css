@@ -1860,3 +1860,33 @@ pre.codeblock {
 /* ---------- startup brand mark (local-only assets with original fallback) ---------- */
 .bm-wrap { display: grid; place-items: center; flex: 0 0 auto; }
 .bm-wrap img { filter: drop-shadow(0 8px 24px rgba(0,0,0,.22)); }
+
+/* ---------- product surface switcher (header, not a bar) ---------- */
+.sb-brand-wrap { position: relative; }
+.sb-brand { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 8px; border-radius: 10px; text-align: left; transition: background .15s ease; }
+.sb-brand:hover { background: var(--hover); }
+.brand-logo { width: 26px; height: 26px; object-fit: contain; border-radius: 7px; flex: 0 0 auto; }
+.brand-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.brand-text .name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brand-surface { font-size: 10.5px; color: var(--faint); }
+.brand-menu { position: absolute; top: calc(100% + 4px); left: 4px; right: 4px; background: var(--elev); border: 1px solid var(--border-strong); border-radius: 12px; box-shadow: var(--shadow); padding: 6px; z-index: 80; animation: popIn .14s cubic-bezier(.22,.8,.36,1) both; transform-origin: top left; }
+.mode-fade { animation: fadeSlideIn .24s ease both; }
+
+/* ---------- codex light fidelity ---------- */
+[data-app="codex"] { --accent: #10a37f; --accent-strong: #0d8a6a; }
+[data-app="codex"][data-theme="light"] {
+  --bg: #fafaf8;
+  --bg-deep: #f2f2ef;
+  --elev: #ffffff;
+  --elev-2: #efefec;
+  --text: #1a1a1a;
+  --muted: #6b6b6b;
+  --faint: #9a9a9a;
+  --border: #e6e6e3;
+  --border-strong: #d6d6d2;
+  --hover: rgba(26,26,26,.045);
+  --sel: rgba(26,26,26,.07);
+  --cmd-bg: #ffffff;
+  --shadow: 0 4px 18px rgba(20,20,20,.07);
+}
+[data-theme] body, body { transition: background .25s ease, color .25s ease; }

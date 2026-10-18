@@ -890,7 +890,7 @@ export default function CodexShell() {
               }}
               onRestore={async (id) => { await api.updateThread(id, { archived: false } as any); setRefreshToken((r) => r + 1); }} />
           ) : !thread && blocks.length === 0 ? (
-            <div className="landing">
+            <div className="landing mode-fade" key={`landing-${conversationMode}`}>
               <BrandMark product="codex" size={92} fallback={<Mascot mode="codex" state={machine.state} size={92} level={machine.level} />} />
               <h1>{(MODE_STRINGS[settings.appMode || "codex"] || MODE_STRINGS.codex).title}</h1>
               <div style={{ width: "100%", maxWidth: 680 }}>
@@ -951,7 +951,7 @@ export default function CodexShell() {
                     <button className="btn" onClick={toggleCompact}>展开完整 transcript</button>
                   </div>
                 ) : (
-                <div className="thread-inner" data-find={findQ || undefined}>
+                <div className="thread-inner mode-fade" key={`surface-${conversationMode}`} data-find={findQ || undefined}>
                   {(() => {
                     const visible = (b: any) => conversationMode === "codex" ? true
                       : conversationMode === "chatgpt_work" ? !["command", "process", "cloud_pc"].includes(b.kind)

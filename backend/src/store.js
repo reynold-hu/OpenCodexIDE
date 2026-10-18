@@ -10,7 +10,7 @@ const WORKSPACE_ROOT = path.join(DATA_HOME, "workspaces");
 
 const DEFAULT_STATE = {
   settings: {
-    theme: "dark",
+    theme: "light",
     appMode: "codex",
     modeProviders: {},
     provider: "simulated",

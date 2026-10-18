@@ -203,7 +203,7 @@ as the in-app character (buddy, dots, composer states).
 
 | Area | What you get |
 | --- | --- |
-| **Shell** | macOS-style titlebar, left nav rail (Home / Artifacts / History / Projects / Agents), collapsible sidebar, dark/light/system themes — deliberately logo-free & minimal in-app (the logo lives in this README + favicon) |
+| **Shell** | macOS-style titlebar, left nav rail (Home / Artifacts / History / Projects / Agents), collapsible sidebar, **light theme by default** (dark/system available) — deliberately logo-free & minimal in-app (the logo lives in this README + favicon) |
 | **Sidebar** | project picker (+ create), search, chats grouped 置顶/Today/Yesterday/7-days, running-status pulse |
 | **Threads** | SSE streaming, plan checklist cards, `$ command` cards with live output, merged "已编辑 N 个文件" card (+X −Y, 撤销, 查看变更, expandable file list), markdown replies |
 | **Thread menu (···)** | 重命名 / 置顶 / 新建侧边聊天 / 继续 / Fork 到新对话 / 添加计划任务 / 分享 / 复制对话 / 新窗口打开 / 归档 |
