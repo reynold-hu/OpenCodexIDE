@@ -42,6 +42,8 @@ Projects with rename/delete, Agents roster, Automations center, Apps roadmap).
 | Message actions | copy · read-aloud · 👍👎 · edit & re-run · revert-to-checkpoint · follow-up pills · ⌘F in-thread find · scroll-to-bottom |
 | Turn ops | auto checkpoint every turn; restore; undo file changes; fork; side chat; continue; retry; cancel; steer injection; annotations (selection → quote+note, consumed next turn) |
 | Worktrees | attach isolated worktree (branch `oc/<slug>`); merge back to main; detach; all fs/terminal/preview routes become thread-aware |
+| Multi-root | associate extra folders per project; Files panel root switcher; root-aware tree/file read/write/terminal; roots stored in project state |
+| Auto-review | auto-mode rule engine annotates command cards: `自动放行 · 联网/写入` badges when rules allow silent execution, `规则需确认` when a rule forces approval |
 | Automation | per-thread scheduled prompts; Automations center (create/toggle/run-now/delete/countdown); bot templates (晨报/巡检/快照/周报) on grok surface |
 | Side panel | Review (git status, per-file diff, commit); Files (tree, preview, reveal/open-with); Terminal (workspace shell); Browser (tabs, omnibox+search, back/forward/reload, zoom 50–200%, new-tab page: tools/推荐/最近); Canvas (edit + save); Preview; Cloud PC |
 | Settings | theme · provider/key/baseURL/model-sync · default model · approval mode · sounds · voice · buddy · **harness** (builtin/opencode serve) · skin→provider mapping · **auto-review rules** · **Passkey lock** · dot preview · account · reset |
@@ -84,7 +86,8 @@ GET  /api/settings | PUT | POST /api/reset
 GET  /api/providers | /api/providers/:id/models
 GET  /api/models
 GET|POST /api/projects | GET|PATCH|DELETE /api/projects/:id
-GET  /api/projects/:id/tree|file?path[&rev]|history?path|git|git/branches
+GET  /api/projects/:id/tree[?root]|file?path[&rev][&root]|history?path|git|git/branches
+GET|POST|DELETE /api/projects/:id/roots (multi-root workspaces)
 POST /api/projects/:id/terminal|commit|processes|open|upload|screenshot|file
 GET  /api/projects/:id/diff[?path] · POST /api/projects/:id/git/checkout
 GET|POST /api/threads (product auto-tagged) | GET|PATCH|DELETE /api/threads/:id

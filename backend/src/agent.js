@@ -125,12 +125,13 @@ async function runCommand(state, thread, cmd, opts = {}) {
     (risk.level === "destructive" && rules.blockDestructive !== false) ||
     (risk.level === "network" && !rules.allowNetwork) ||
     (risk.level === "write" && !rules.allowWrite);
+  const autoNudge = mode === "auto" && ruleTriggers ? "auto-review" : undefined;
   if (mode === "read-only" && mutating) {
     pushEvent(state, thread, { type: "command", id, cmd, status: "denied", reason: "read-only mode", ts: Date.now() });
     return { skipped: true, reason: "read-only mode" };
   }
   if ((mode === "ask" && mutating) || (mode === "auto" && ruleTriggers)) {
-    pushEvent(state, thread, { type: "command", id, cmd, status: "awaiting_approval", risk, ts: Date.now() });
+    pushEvent(state, thread, { type: "command", id, cmd, status: "awaiting_approval", risk, nudge: autoNudge, ts: Date.now() });
     const { decision } = await bus.requestApproval(thread.id, cmd, dir);
     const ev = thread.events.find((e) => e.type === "command" && e.id === id);
     if (decision !== "approve") {
@@ -141,7 +142,7 @@ async function runCommand(state, thread, cmd, opts = {}) {
     if (ev) Object.assign(ev, { status: "running" });
     bus.broadcast(thread.id, { type: "command_update", id, status: "running" });
   } else {
-    pushEvent(state, thread, { type: "command", id, cmd, status: "running", risk, ts: Date.now() });
+    pushEvent(state, thread, { type: "command", id, cmd, status: "running", risk, autoApproved: mode === "auto" && !ruleTriggers && risk.level !== "read" ? risk.level : undefined, ts: Date.now() });
   }
   const t0 = Date.now();
   const turn = activeTurns.get(thread.id);

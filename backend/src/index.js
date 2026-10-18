@@ -572,11 +572,39 @@ function projectDir(req, res) {
     res.status(404).json({ error: "project not found" });
     return null;
   }
+  const rootIdx = Number(req.query.root ?? req.body?.root ?? 0);
+  if (rootIdx > 0 && Array.isArray(p.roots) && p.roots[rootIdx - 1]) {
+    const rp = p.roots[rootIdx - 1];
+    if (fs.existsSync(rp)) return rp;
+  }
   const t = findThread(String(req.query.thread || req.body?.thread || ""));
   if (t && t.worktree && fs.existsSync(t.worktree.path)) return t.worktree.path;
   return workspacePath(p);
 }
 
+app.get("/api/projects/:id/roots", (req, res) => {
+  const p = findProject(req.params.id);
+  if (!p) return res.status(404).json({ error: "not found" });
+  res.json([{ index: 0, name: p.name, path: workspacePath(p) }, ...(p.roots || []).map((r, i) => ({ index: i + 1, name: path.basename(r), path: r }))]);
+});
+app.post("/api/projects/:id/roots", (req, res) => {
+  const p = findProject(req.params.id);
+  if (!p) return res.status(404).json({ error: "not found" });
+  const rp = String(req.body?.path || "").trim();
+  if (!rp || !fs.existsSync(rp) || !fs.statSync(rp).isDirectory()) return res.status(400).json({ error: "folder not found" });
+  p.roots = p.roots || [];
+  if (!p.roots.includes(rp)) p.roots.push(rp);
+  saveNow();
+  res.json({ ok: true, roots: p.roots });
+});
+app.delete("/api/projects/:id/roots", (req, res) => {
+  const p = findProject(req.params.id);
+  if (!p) return res.status(404).json({ error: "not found" });
+  const rp = String(req.body?.path || req.query.path || "");
+  p.roots = (p.roots || []).filter((x) => x !== rp);
+  saveNow();
+  res.json({ ok: true, roots: p.roots });
+});
 app.get("/api/projects/:id/tree", (req, res) => {
   const dir = projectDir(req, res);
   if (!dir) return;

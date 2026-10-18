@@ -1850,3 +1850,9 @@ pre.codeblock {
 .proj-menu-row { display: flex; align-items: center; gap: 2px; padding-right: 4px; }
 .proj-menu-row > .menu-item { min-width: 0; }
 .rp-group-label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--faint); margin: 16px 0 6px; }
+
+/* ---------- auto-review badges + roots ---------- */
+.auto-badge { font-size: 10px; padding: 1px 7px; border-radius: 999px; color: var(--green); border: 1px solid rgba(0,200,83,.35); flex: 0 0 auto; white-space: nowrap; }
+.auto-badge.warn { color: #d9a520; border-color: rgba(217,165,32,.45); }
+.roots-row { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
+.roots-row .select-like { flex: 1; min-width: 0; }

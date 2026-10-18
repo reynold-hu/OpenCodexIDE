@@ -154,6 +154,23 @@ async function collectSSE(threadId, ms) {
   await del(`/api/threads/${threadId}/worktree`);
   ok("worktree detach", true);
 
+  // multi-root workspace
+  const os = await import("node:os");
+  const fsmod = await import("node:fs");
+  const pathmod = await import("node:path");
+  const extraRoot = fsmod.mkdtempSync(pathmod.join(os.tmpdir(), "oea-root-"));
+  const addRoot = await post(`/api/projects/${projectId}/roots`, { path: extraRoot });
+  ok("add project root", addRoot.status === 200);
+  const roots = (await json(`/api/projects/${projectId}/roots`)).body;
+  ok("roots listed", Array.isArray(roots) && roots.length >= 2, `${roots.length} roots`);
+  const rootTree = await json(`/api/projects/${projectId}/tree?root=1`);
+  ok("tree from extra root", rootTree.status === 200 && Array.isArray(rootTree.body));
+  const writeRoot = await post(`/api/projects/${projectId}/file`, { path: "e2e-root.txt", content: "hello root", root: 1 });
+  const readRoot = await json(`/api/projects/${projectId}/file?path=e2e-root.txt&root=1`);
+  ok("read/write extra root", writeRoot.status === 200 && readRoot.body?.content === "hello root");
+  await json(`/api/projects/${projectId}/roots`, { method: "DELETE", body: JSON.stringify({ path: extraRoot }) });
+  ok("remove project root", !(await json(`/api/projects/${projectId}/roots`)).body.some((r) => r.path === extraRoot));
+
   // passkey status
   const pk = await json("/api/passkey/status");
   ok("passkey status", pk.status === 200 && typeof pk.body.enabled === "boolean");

@@ -70,6 +70,8 @@ export function CommandCard({ block, onApprove, diffPreview }: { block: Extract<
         {block.risk && block.risk.level !== "read" && (
           <span className={`risk-badge ${block.risk.level}`}>{block.risk.label}</span>
         )}
+        {block.autoApproved && <span className="auto-badge" title="自动审查规则放行">自动放行 · {block.risk?.label || block.autoApproved}</span>}
+        {block.nudge === "auto-review" && <span className="auto-badge warn" title="自动审查规则要求人工确认">规则需确认</span>}
         {block.durationMs !== undefined && <span className="ch-meta">{(block.durationMs / 1000).toFixed(1)}s</span>}
         {block.output ? <IconChevron size={12} dir={open ? "up" : "down"} style={{ color: "var(--faint)" }} /> : null}
       </div>

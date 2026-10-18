@@ -60,6 +60,10 @@ export function SidePanel({
   const [commitMsg, setCommitMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [diffFile, setDiffFile] = useState<string | null>(null);
+  const [roots, setRoots] = useState<{ index: number; name: string; path: string }[]>([]);
+  const [rootIdx, setRootIdx] = useState(0);
+  const refreshRoots = useCallback(() => { api.roots(project.id).then(setRoots).catch(() => {}); }, [project.id]);
+  useEffect(() => { refreshRoots(); }, [refreshRoots]);
 
   const refreshGit = useCallback(async () => {
     try {
@@ -71,7 +75,7 @@ export function SidePanel({
 
   const refreshTree = useCallback(async () => {
     try {
-      setTreeFiles(await api.tree(project.id, threadId));
+      setTreeFiles(await api.tree(project.id, threadId, rootIdx));
     } catch {}
   }, [project.id]);
 
@@ -96,7 +100,7 @@ export function SidePanel({
 
   const openFile = async (p: string) => {
     try {
-      const f = await api.file(project.id, p, threadId);
+      const f = await api.file(project.id, p, threadId, undefined, rootIdx);
       setFileContent({ path: p, content: f.truncated ? `[file too large: ${f.size} bytes]` : f.content });
     } catch (e: any) {
       setFileContent({ path: p, content: `Error: ${e?.message}` });
@@ -183,6 +187,25 @@ export function SidePanel({
 
         {tab === "files" && (
           <>
+            <div className="roots-row">
+              <select className="select-like" value={rootIdx} onChange={(e) => { const v = Number(e.target.value); setRootIdx(v); setFileContent(null); api.tree(project.id, threadId, v).then(setTreeFiles).catch(() => {}); }}>
+                {roots.map((r) => <option key={r.index} value={r.index}>{r.name}{r.index > 0 ? " (关联)" : ""}</option>)}
+              </select>
+              <button className="icon-btn" title="添加关联文件夹" onClick={async () => {
+                const p = prompt("关联文件夹绝对路径:");
+                if (!p) return;
+                await api.addRoot(project.id, p);
+                refreshRoots();
+              }}>＋</button>
+              {rootIdx > 0 && (
+                <button className="icon-btn" title="移除该关联文件夹" onClick={async () => {
+                  const r = roots.find((x) => x.index === rootIdx);
+                  if (!r) return;
+                  await api.removeRoot(project.id, r.path);
+                  setRootIdx(0); refreshRoots(); api.tree(project.id, threadId, 0).then(setTreeFiles);
+                }}>×</button>
+              )}
+            </div>
             {fileContent ? (
               <>
                 <div className="git-file-row" style={{ marginBottom: 8 }}>

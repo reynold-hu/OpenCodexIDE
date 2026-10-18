@@ -123,6 +123,8 @@ export type Block =
       approvalId?: string;
       expiresAt?: number;
       risk?: { level: string; label: string };
+      autoApproved?: string;
+      nudge?: string;
     }
   | ({ kind: "file_change" } & FileChangeItem)
   | { kind: "file_group"; items: FileChangeItem[] }
