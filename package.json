@@ -11,7 +11,8 @@
     "dev:grok": "PRODUCT=grok npm --prefix backend run dev & PRODUCT=grok npm --prefix frontend run dev & wait",
     "build": "npm --prefix frontend run build",
     "dmgs": "node tools/sync-dmgs.mjs",
-    "dmgs:all": "node tools/sync-dmgs.mjs --all"
+    "dmgs:all": "node tools/sync-dmgs.mjs --all",
+    "e2e:codex": "node tools/e2e-codex.mjs"
   },
   "license": "AGPL-3.0-only",
   "repository": {

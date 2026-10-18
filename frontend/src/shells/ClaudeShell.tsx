@@ -10,6 +10,7 @@ import { ClaudeRayMark } from "../components/RayMark";
 import { Mascot } from "../components/Mascot";
 import { useMascotMachine } from "../lib/mascotState";
 import { Buddy } from "../components/Buddy";
+import { apiFetch } from "../api";
 
 type Page = "home" | "chat" | "projects" | "artifacts";
 
@@ -136,7 +137,7 @@ export default function ClaudeShell() {
       setApTab(path.endsWith(".html") ? "preview" : "code");
       setArtifact({ path, content: f.content });
       let vers: any[] = [];
-      try { vers = (await fetch(`/api/projects/${project.id}/history?path=${encodeURIComponent(path)}`).then((r) => r.json())).entries || []; } catch {}
+      try { vers = (await apiFetch(`/api/projects/${project.id}/history?path=${encodeURIComponent(path)}`).then((r) => r.json())).entries || []; } catch {}
       setApVersions(vers); setApVer(0);
     } catch {}
   };

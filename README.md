@@ -185,6 +185,14 @@ With a real provider, the agent runs a full tool-calling loop
 the same plan cards, command cards, diffs and approval gates as simulated mode,
 with multi-turn context rebuilt from the stored transcript.
 
+## Docs
+
+- [Codex surface — product design & reference](docs/PRODUCT-CODEX.md)
+  (information architecture, feature matrix, turn lifecycle, API + SSE,
+  state machines, persistence, verification)
+- [Roadmap & TODOs](docs/ROADMAP.md) (OpenScience vision, per-product backlogs)
+- End-to-end acceptance: `node tools/e2e-codex.mjs` (29 checks)
+
 ## Features
 
 | Area | What you get |

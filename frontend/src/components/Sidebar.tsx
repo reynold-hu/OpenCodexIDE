@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import type { Project, ThreadMeta } from "../types";
-import { IconPlus, IconSearch, IconGear, IconTrash, IconFolder, IconChevron } from "../icons";
+import { IconPlus, IconSearch, IconGear, IconTrash, IconFolder, IconChevron, IconPencil } from "../icons";
 import { Dot, dotStateFrom } from "./Dot";
 
 function groupLabel(ts: number, now: number) {
@@ -32,6 +32,8 @@ export function Sidebar({
   onMode,
   onNewDot,
   running,
+  onRenameProject,
+  onDeleteProject,
 }: {
   projects: Project[];
   currentProject: Project | undefined;
@@ -48,6 +50,8 @@ export function Sidebar({
   onMode: (m: string) => void;
   onNewDot: () => void;
   running: boolean;
+  onRenameProject: (p: Project) => void;
+  onDeleteProject: (p: Project) => void;
 }) {
   const [search, setSearch] = useState("");
   const [scope, setScope] = useState<"local" | "cloud">("local");
@@ -140,20 +144,24 @@ export function Sidebar({
             onMouseLeave={() => setProjOpen(false)}
           >
             {projects.map((p) => (
-              <button
-                key={p.id}
-                className="menu-item"
-                onClick={() => {
-                  onProject(p);
-                  setProjOpen(false);
-                }}
-              >
-                <span className="mi-check">{p.id === currentProject?.id ? <IconCheck size={14} /> : null}</span>
-                <span className="mi-body">
-                  <div className="mi-title">{p.name}</div>
-                  <div className="mi-desc" style={{ fontFamily: "var(--mono)" }}>{p.path}</div>
-                </span>
-              </button>
+              <div key={p.id} className="proj-menu-row">
+                <button
+                  className="menu-item"
+                  style={{ flex: 1 }}
+                  onClick={() => {
+                    onProject(p);
+                    setProjOpen(false);
+                  }}
+                >
+                  <span className="mi-check">{p.id === currentProject?.id ? <IconCheck size={14} /> : null}</span>
+                  <span className="mi-body">
+                    <div className="mi-title">{p.name}</div>
+                    <div className="mi-desc" style={{ fontFamily: "var(--mono)" }}>{p.path}</div>
+                  </span>
+                </button>
+                <button className="icon-btn" title="重命名" onClick={() => onRenameProject(p)}><IconPencil size={12} /></button>
+                <button className="icon-btn" title="删除" onClick={() => onDeleteProject(p)}><IconTrash size={12} /></button>
+              </div>
             ))}
           </div>
         )}

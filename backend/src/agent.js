@@ -958,7 +958,15 @@ export async function runTurn(state, thread, prompt, req_agents) {  const provid
       thread.status = "idle";
       return;
     }
-    return await runSimulatedTurn(state, thread, expanded, dir, prompt, checkpoint);
+    await runSimulatedTurn(state, thread, expanded, dir, prompt, checkpoint);
+    // simulated engine can't inject mid-turn: run queued steers as a follow-up turn
+    const leftover = drainSteer(thread.id);
+    if (leftover.length && !activeTurns.get(thread.id)?.aborted) {
+      for (const st of leftover) pushEvent(state, thread, { type: "steer", prompt: st, ts: Date.now() });
+      thread.status = "idle";
+      await runSimulatedTurn(state, thread, leftover.join("\n\n"), dir, leftover.join("\n\n"));
+    }
+    return;
   } finally {
     activeTurns.delete(thread.id);
   }

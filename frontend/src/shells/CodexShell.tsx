@@ -19,6 +19,7 @@ import { NavRail, type RailView } from "../components/NavRail";
 import { ThreadMenu } from "../components/ThreadMenu";
 import { SummaryPanel } from "../components/SummaryPanel";
 import { IconPanel, IconSummary, IconPlus, IconArrowDown, IconX, IconPin, IconAlert, IconClock, IconCornerUpLeft, IconArrowLeft, IconBranch, IconLink, IconChevron } from "../icons";
+import { apiFetch } from "../api";
 
 export const MODE_STRINGS: Record<string, { title: string; ask: string; chips: string[] }> = {
   codex: { title: "Where should we work?", ask: "Ask the agent anything…", chips: ["Create a calculator in JavaScript", "Build a todo list app in Python", "做一个个人资产看板网页", "List the workspace files", "Write a small HTTP server in Node", "What is the git status?"] },
@@ -58,6 +59,7 @@ export default function CodexShell() {
   const [refreshToken, setRefreshToken] = useState(0);
   const [railView, setRailView] = useState<RailView | "chat">("chat");
   const [allThreads, setAllThreads] = useState<ThreadMeta[]>([]);
+  const [archivedThreads, setArchivedThreads] = useState<ThreadMeta[]>([]);
   const [atBottom, setAtBottom] = useState(true);
   const [lastUsage, setLastUsage] = useState<{ input_tokens?: number; output_tokens?: number; cost?: number } | null>(null);
   const [branches, setBranches] = useState<{ name: string; current: boolean }[]>([]);
@@ -126,6 +128,7 @@ export default function CodexShell() {
       setThreads(ts);
       setAllThreads(ts);
     }).catch(() => {});
+    api.threads(project.id, "codex", true).then(setArchivedThreads).catch(() => {});
   }, [project?.id, refreshToken]);
 
   const showToast = useCallback((msg: string) => {
@@ -667,6 +670,24 @@ export default function CodexShell() {
           onMode={(m) => saveSettings({ conversationMode: m } as any)}
           onNewDot={newDot}
           running={running}
+          onRenameProject={async (p) => {
+            const name = prompt("重命名项目:", p.name);
+            if (!name) return;
+            const upd = await api.updateProject(p.id, name);
+            setProjects((ps) => ps.map((x) => (x.id === upd.id ? upd : x)));
+            if (project?.id === upd.id) setProject(upd);
+          }}
+          onDeleteProject={async (p) => {
+            if (!confirm(`删除项目 "${p.name}"?其会话会一并删除(工作区文件保留)。`)) return;
+            await api.deleteProject(p.id);
+            const rest = projects.filter((x) => x.id !== p.id);
+            setProjects(rest);
+            if (project?.id === p.id) {
+              setProject(rest[0] || null);
+              setThread(null);
+              setBlocks([]);
+            }
+          }}
         />
 
         <main className="main">
@@ -825,7 +846,7 @@ export default function CodexShell() {
           ) : railView === "agents" ? (
             <AgentRoster />
           ) : railView === "artifacts" || railView === "history" || railView === "projects" || railView === "more" ? (
-            <RailPage view={railView} threads={allThreads} onOpenThread={openThread} onCreateProject={createProject} projects={projects} onProject={(p) => { setProject(p); setRailView("chat"); }} />
+            <RailPage view={railView} threads={allThreads} archived={archivedThreads} onOpenThread={openThread} onCreateProject={createProject} projects={projects} onProject={(p) => { setProject(p); setRailView("chat"); }} onRestore={async (id) => { await api.updateThread(id, { archived: false } as any); setRefreshToken((r) => r + 1); }} />
           ) : !thread && blocks.length === 0 ? (
             <div className="landing">
               <Mascot mode="codex" state={machine.state} size={92} level={machine.level} />
@@ -1020,7 +1041,7 @@ export default function CodexShell() {
           onClose={() => setSettingsOpen(false)}
           onReset={async () => {
             if (!confirm("Reset all OpenEveryAgent data?")) return;
-            await fetch("/api/reset", { method: "POST" });
+            await apiFetch("/api/reset", { method: "POST" });
             location.reload();
           }}
         />
@@ -1061,13 +1082,15 @@ export default function CodexShell() {
   );
 }
 
-function RailPage({ view, threads, onOpenThread, onCreateProject, projects, onProject }: {
+function RailPage({ view, threads, archived, onOpenThread, onCreateProject, projects, onProject, onRestore }: {
   view: RailView;
   threads: ThreadMeta[];
+  archived: ThreadMeta[];
   onOpenThread: (t: ThreadMeta) => void;
   onCreateProject: () => void;
   projects: Project[];
   onProject: (p: Project) => void;
+  onRestore: (id: string) => void;
 }) {
   const [artifacts, setArtifacts] = useState<{ path: string; threadId: string; threadTitle: string; ts: number }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1107,14 +1130,30 @@ function RailPage({ view, threads, onOpenThread, onCreateProject, projects, onPr
         )
       )}
       {view === "history" && (
-        <div className="rp-list">
-          {threads.map((t) => (
-            <button key={t.id} className="rp-item" onClick={() => onOpenThread(t)}>
-              <span style={{ flex: 1 }}>{t.title || "New chat"}{t.archived ? " (archived)" : ""}</span>
-              <span className="rp-sub">{new Date(t.updatedAt).toLocaleString()}</span>
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="rp-list">
+            {threads.map((t) => (
+              <button key={t.id} className="rp-item" onClick={() => onOpenThread(t)}>
+                <span style={{ flex: 1 }}>{t.title || "New chat"}</span>
+                <span className="rp-sub">{new Date(t.updatedAt).toLocaleString()}</span>
+              </button>
+            ))}
+          </div>
+          {archived.length > 0 && (
+            <>
+              <div className="rp-group-label">已归档 · Archived</div>
+              <div className="rp-list">
+                {archived.map((t) => (
+                  <div key={t.id} className="rp-item" style={{ cursor: "default" }}>
+                    <span style={{ flex: 1, color: "var(--muted)" }}>{t.title || "New chat"}</span>
+                    <span className="rp-sub">{new Date(t.updatedAt).toLocaleDateString()}</span>
+                    <button className="btn" onClick={() => onRestore(t.id)}>恢复</button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>
       )}
       {view === "projects" && (
         <div className="rp-list">

@@ -5,6 +5,7 @@ import { api } from "../api";
 import { registerPasskey, passkeySupported } from "../lib/webauthn";
 import { TOKEN_KEY } from "./LockScreen";
 import { Dot, DOT_VARIANTS } from "./Dot";
+import { apiFetch } from "../api";
 
 export function SettingsModal({
   settings,
@@ -32,7 +33,7 @@ export function SettingsModal({
     fetch("/api/passkey/status").then((r) => r.json()).then((s) => setPkEnabled(!!s.enabled)).catch(() => {});
   }, []);
   useEffect(() => {
-    fetch("/api/harness").then((r) => r.json()).then((h) => {
+    apiFetch("/api/harness").then((r) => r.json()).then((h) => {
       const ms = Object.entries(h.opencodeModels || {}).map(([k, v]) => `${k}:${(v as string[]).slice(0, 2).join("/")}`).join("  ");
       setHarnessInfo(h.available ? `✓ 已安装 · ${ms}` : "✗ 未找到 opencode 二进制");
     }).catch(() => setHarnessInfo("查询失败"));
@@ -192,7 +193,7 @@ export function SettingsModal({
             {pkEnabled ? (
               <button className="btn" onClick={async () => {
                 const t = sessionStorage.getItem(TOKEN_KEY);
-                await fetch("/api/passkey", { method: "DELETE", headers: t ? { "x-oea-token": t } : {} });
+                await apiFetch("/api/passkey", { method: "DELETE", headers: t ? { "x-oea-token": t } : {} });
                 setPkEnabled(false); setPkMsg("已关闭");
               }}>关闭</button>
             ) : (

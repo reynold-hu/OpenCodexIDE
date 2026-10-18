@@ -5,6 +5,7 @@ import { IconCheck, IconChevron, IconShield, IconX, IconFile, IconGlobe, IconUnd
 
 import { CloudPcCard } from "./CloudPanel";
 import { AgentAvatar } from "./AgentAvatar";
+import { apiFetch } from "../api";
 
 export function DiffView({ patch }: { patch: string }) {
   const lines = patch.split("\n");
@@ -144,7 +145,7 @@ export function FileGroupCard({
             <span className="stat-add">+{f.additions}</span>
             <span className="stat-del">-{f.deletions}</span>
             {projectId && !f.reverted && (
-              <button className="fc-open" title="用默认应用打开" onClick={(e) => { e.stopPropagation(); fetch(`/api/projects/${projectId}/open`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path: f.path, mode: "open" }) }); }}>↗</button>
+              <button className="fc-open" title="用默认应用打开" onClick={(e) => { e.stopPropagation(); apiFetch(`/api/projects/${projectId}/open`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path: f.path, mode: "open" }) }); }}>↗</button>
             )}
           </div>
         ))}
@@ -165,7 +166,7 @@ export function PreviewCard({ url, path, onOpenPreview, onOpenWindow }: { url: s
   const shoot = async () => {
     setShooting(true);
     try {
-      const r = await fetch(`/api/projects/${(window as any).__ocxProjectId || ""}/screenshot`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) });
+      const r = await apiFetch(`/api/projects/${(window as any).__ocxProjectId || ""}/screenshot`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) });
       const j = await r.json();
       if (j.url) setShot(j.url);
       else alert(j.error || "截图失败");
@@ -224,7 +225,7 @@ export function ProcessCard({ block, projectId }: { block: Extract<Block, { kind
   const toggle = async () => {
     if (!open && !log) {
       try {
-        const r = await fetch(`/api/projects/${projectId}/processes/${block.id}/log`).then((x) => x.json());
+        const r = await apiFetch(`/api/projects/${projectId}/processes/${block.id}/log`).then((x) => x.json());
         setLog(r.log || "(empty)");
       } catch {
         setLog("(unavailable)");
@@ -244,7 +245,7 @@ export function ProcessCard({ block, projectId }: { block: Extract<Block, { kind
             className="fcard-btn"
             style={{ padding: "2px 8px" }}
             onClick={async () => {
-              await fetch(`/api/projects/${projectId}/processes/${block.id}/stop`, { method: "POST" });
+              await apiFetch(`/api/projects/${projectId}/processes/${block.id}/stop`, { method: "POST" });
               setStopped(true);
             }}
           >

@@ -139,6 +139,18 @@ app.post("/api/projects", async (req, res) => {
   save();
   res.json({ ...p, path: workspacePath(p) });
 });
+app.get("/api/projects/:id", (req, res) => {
+  const p = findProject(req.params.id);
+  if (!p) return res.status(404).json({ error: "not found" });
+  res.json({ ...p, path: workspacePath(p) });
+});
+app.patch("/api/projects/:id", (req, res) => {
+  const p = findProject(req.params.id);
+  if (!p) return res.status(404).json({ error: "not found" });
+  if (req.body?.name) p.name = String(req.body.name).trim().replace(/[^a-zA-Z0-9 _\-\u4e00-\u9fff]/g, "").slice(0, 32) || p.name;
+  save();
+  res.json(p);
+});
 app.delete("/api/projects/:id", (req, res) => {
   const i = state.projects.findIndex((p) => p.id === req.params.id);
   if (i === -1) return res.status(404).json({ error: "not found" });
@@ -245,7 +257,11 @@ app.post("/api/threads/:id/undo", (req, res) => {
         const r = await revertPath(dir, String(rel));
         results.push({ path: rel, result: r });
         for (const ev of t.events) if (ev.type === "file_change" && ev.path === rel) ev.reverted = true;
-        bus.broadcast(t.id, { type: "files_reverted", paths: results.map((x) => x.path) });
+        if (results.length) {
+          const rev = { type: "files_reverted", paths: results.map((x) => x.path), ts: Date.now() };
+          t.events.push(rev);
+          bus.broadcast(t.id, rev);
+        }
       } catch (e) {
         results.push({ path: rel, error: e.message });
       }
