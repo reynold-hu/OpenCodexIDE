@@ -96,6 +96,32 @@ DeepSeek, Qwen, Kimi, GLM, OpenRouter, Groq, Ollama, custom). Settings →
 auto-switches providers, so each product surface can speak to its own vendor
 *and* to the shared external pool.
 
+## Upstream sync — official sources & feature diff
+
+We track the latest official builds of the four products and re-derive their
+feature surface each release. `tools/sync-dmgs.mjs` resolves the **official**
+update feeds, downloads new builds, prunes old ones, and diffs the renderer
+module lists so new features show up immediately:
+
+```bash
+npm run dmgs              # resolve latest versions only
+node tools/sync-dmgs.mjs --all   # download + prune old + analyze + feature diff
+```
+
+Managed folder: `~/Downloads/OpenEveryAgent-DMGs/<product>/`
+(`features-<version>.txt` holds the module list; the next `--all` run prints
+`+new / -removed` module names vs the previous version.)
+
+| Product | Official latest source (observed from in-app update config) |
+| --- | --- |
+| **OpenAI Codex** | Sparkle feed `https://persistent.oaistatic.com/codex-app-prod/appcast.xml` → `persistent.oaistatic.com/.../ChatGPT-darwin-arm64-<ver>.zip` |
+| **Anthropic Claude** | `https://downloads.claude.ai/claude-science/latest/mac-arm64.dmg` |
+| **Meta Muse** | Sparkle feed `https://www.facebook.com/endo/release/appcast.xml?channel=production` (signed CDN enclosure) |
+| **Cursor Grok Bot** | `https://cursor.com/download/bot` → `downloads.cursor.com/grokbot/stable/darwin-arm64/<ver>/Grok_Bot_<ver>.dmg` |
+
+Workflow each cycle: sync → feature-diff → read the new module names → build
+the missing behaviours into the matching product shell.
+
 ## Why not just use X?
 
 | | Codex-style desktop agents | opencode | **OpenEveryAgent IDE** |

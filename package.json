@@ -9,7 +9,9 @@
     "dev:claude": "PRODUCT=claude npm --prefix backend run dev & PRODUCT=claude npm --prefix frontend run dev & wait",
     "dev:muse": "PRODUCT=muse npm --prefix backend run dev & PRODUCT=muse npm --prefix frontend run dev & wait",
     "dev:grok": "PRODUCT=grok npm --prefix backend run dev & PRODUCT=grok npm --prefix frontend run dev & wait",
-    "build": "npm --prefix frontend run build"
+    "build": "npm --prefix frontend run build",
+    "dmgs": "node tools/sync-dmgs.mjs",
+    "dmgs:all": "node tools/sync-dmgs.mjs --all"
   },
   "license": "AGPL-3.0-only",
   "repository": {
