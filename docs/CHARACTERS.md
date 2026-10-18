@@ -1,8 +1,13 @@
 # Character Packs — original assets & generation prompts
 
-Our products ship with **original procedural characters** (SVG + CSS). To replace
-them with richer generated art, drop a *character pack* into the frontend; the
-app picks it up automatically. No third-party mascots, logos or frames are used.
+Our products ship with **original characters**. Three packs are included
+(generated from our own sticker sheet and sliced with
+`tools/slice-character-sheet.py`): `dots` (silver orb), `grok` (robot),
+`muse` (hatch creature) — 7 states each, transparent 512px PNGs with
+state-driven CSS motion. `claude` still uses the procedural ray character
+until a sheet row is generated. To replace or extend, drop a *character pack*
+into the frontend; the app picks it up automatically. No third-party mascots,
+logos or frames are used.
 
 ## Folder layout
 

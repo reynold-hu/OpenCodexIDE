@@ -1,0 +1,12 @@
+{
+  "name": "grok-sheet-v1",
+  "states": {
+    "idle": "idle.png",
+    "working": "working.png",
+    "attention": "attention.png",
+    "celebrate": "celebrate.png",
+    "dizzy": "dizzy.png",
+    "heart": "heart.png",
+    "sleep": "sleep.png"
+  }
+}

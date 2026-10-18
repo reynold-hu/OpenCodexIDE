@@ -36,15 +36,17 @@ export function PackImage({ product, pack, state, size, tint }: { product: strin
   const file = pack.states?.[state] || pack.states?.idle;
   if (!file) return null;
   return (
-    <img
-      className="char-pack-img"
-      src={`/characters/${product}/${file}`}
-      width={size}
-      height={size}
-      alt=""
-      style={{ objectFit: "contain", filter: tint || undefined }}
-      draggable={false}
-    />
+    <span className={`char-frame st-${state}`} style={{ width: size, height: size }}>
+      <img
+        className="char-pack-img"
+        src={`/characters/${product}/${file}`}
+        width={size}
+        height={size}
+        alt=""
+        style={{ objectFit: "contain", filter: tint || undefined }}
+        draggable={false}
+      />
+    </span>
   );
 }
 
