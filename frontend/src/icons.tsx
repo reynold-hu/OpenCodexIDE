@@ -62,5 +62,7 @@ export const IconArrowUpRight = (p: P) => <S {...p}><path d="M7 17 17 7M7 7h10v1
 export const IconLink = (p: P) => <S {...p}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></S>;
 export const IconProcess = (p: P) => <S {...p}><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M9 9h6v6H9z" /></S>;
 export const IconBranch = (p: P) => <S {...p}><circle cx="6" cy="6" r="2.5" /><circle cx="6" cy="18" r="2.5" /><circle cx="18" cy="6" r="2.5" /><path d="M6 8.5v7M18 8.5a6 6 0 0 1-6 6h-2" /></S>;
+export const IconBell = (p: P) => <S {...p}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></S>;
+export const IconCompose = (p: P) => <S {...p}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></S>;
 export const IconList = (p: P) => <S {...p}><circle cx="5" cy="7" r="1.4" fill="currentColor" /><circle cx="5" cy="15" r="1.4" fill="currentColor" /><path d="M9.5 7H20M9.5 15H20" /></S>;
 export const IconChat = (p: P) => <S {...p}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></S>;

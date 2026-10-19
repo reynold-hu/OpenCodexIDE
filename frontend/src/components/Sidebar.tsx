@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import type { Project, ThreadMeta } from "../types";
-import { IconPlus, IconSearch, IconGear, IconTrash, IconFolder, IconChevron, IconPencil } from "../icons";
+import { IconPlus, IconSearch, IconGear, IconTrash, IconFolder, IconChevron, IconPencil, IconBell, IconCompose } from "../icons";
 import { Dot, dotStateFrom } from "./Dot";
 
 const BRAND_MODES: { id: string; label: string; desc: string }[] = [
@@ -41,6 +41,9 @@ export function Sidebar({
   running,
   onRenameProject,
   onDeleteProject,
+  activity,
+  activityOpen,
+  onActivityToggle,
 }: {
   projects: Project[];
   currentProject: Project | undefined;
@@ -60,10 +63,14 @@ export function Sidebar({
   running: boolean;
   onRenameProject: (p: Project) => void;
   onDeleteProject: (p: Project) => void;
+  activity: { kind: string; text: string }[];
+  activityOpen: boolean;
+  onActivityToggle: () => void;
 }) {
   const [search, setSearch] = useState("");
   const [scope, setScope] = useState<"local" | "cloud">("local");
   const [brandOpen, setBrandOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [projOpen, setProjOpen] = useState(false);
   const [hits, setHits] = useState<{ id: string; title: string; sample: string[] }[] | null>(null);
 
@@ -96,33 +103,56 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="sb-head">
-        <div className="sb-brand-wrap">
-          <div className="sb-brand" onClick={() => setBrandOpen(!brandOpen)} role="button" tabIndex={0} title="切换产品表面">
-            <img src="/logo.png" alt="" className="brand-logo" />
-            <span className="brand-text">
-              <span className="name">OpenEveryAgent</span>
-              <span className="brand-surface">{BRAND_MODES.find((m) => m.id === mode)?.label || "Codex"}</span>
-            </span>
-            <IconChevron size={12} dir={brandOpen ? "up" : "down"} style={{ color: "var(--faint)" }} />
-            <span className="icon-btn" title="New chat" onClick={(e) => { e.stopPropagation(); onNewChat(); }}>
-              <IconPlus size={15} />
-            </span>
+        <div className="sb-head-row">
+          <div className="surface-wrap">
+            <button className="surface-switch" onClick={() => setBrandOpen(!brandOpen)} title="切换产品表面">
+              {BRAND_MODES.find((m) => m.id === mode)?.label || "Codex"}
+              <IconChevron size={12} dir={brandOpen ? "up" : "down"} />
+            </button>
+            {brandOpen && (
+              <div className="brand-menu" onMouseLeave={() => setBrandOpen(false)}>
+                <div className="menu-label">产品表面 · Surface</div>
+                {BRAND_MODES.map((m) => (
+                  <button key={m.id} className="menu-item" onClick={() => { onMode(m.id); setBrandOpen(false); }}>
+                    <span className="mi-check">{mode === m.id ? <IconCheck size={14} /> : null}</span>
+                    <span className="mi-body">
+                      <div className="mi-title">{m.label}</div>
+                      <div className="mi-desc">{m.desc}</div>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          {brandOpen && (
-            <div className="brand-menu" onMouseLeave={() => setBrandOpen(false)}>
-              <div className="menu-label">产品表面 · Surface</div>
-              {BRAND_MODES.map((m) => (
-                <button key={m.id} className="menu-item" onClick={() => { onMode(m.id); setBrandOpen(false); }}>
-                  <span className="mi-check">{mode === m.id ? <IconCheck size={14} /> : null}</span>
-                  <span className="mi-body">
-                    <div className="mi-title">{m.label}</div>
-                    <div className="mi-desc">{m.desc}</div>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+          <span style={{ flex: 1 }} />
+          <button className="icon-btn bell-btn" title="查看活动 ⌥⌘U" onClick={onActivityToggle}>
+            <IconBell size={15} />
+            {activity.some((a) => a.kind === "alert") && <span className="bell-dot" />}
+          </button>
+          <button className={`icon-btn ${searchOpen ? "active" : ""}`} title="搜索" onClick={() => setSearchOpen(!searchOpen)}>
+            <IconSearch size={15} />
+          </button>
         </div>
+        {activityOpen && (
+          <div className="activity-pop" onMouseLeave={onActivityToggle}>
+            <div className="ap-title">活动 · Activity <span className="tmi-kbd">⌥⌘U</span></div>
+            {activity.length === 0 && <div className="ap-empty">暂无活动</div>}
+            {activity.slice(0, 10).map((a, i) => (
+              <div key={i} className={`ap-item ${a.kind}`}>
+                <span className={`ap-dot ${a.kind}`} />
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {searchOpen && (
+          <div className="sb-search">
+            <IconSearch size={13} style={{ color: "var(--faint)" }} />
+            <input autoFocus placeholder="搜索对话…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+        )}
+        <button className="new-chat" onClick={onNewChat}><IconCompose size={14} /> 新聊天</button>
+        <div className="sb-group" style={{ padding: "6px 8px 2px" }}>项目</div>
         <div className="dots-row">
           <span className="dots-label">Dots</span>
           <div className="dots-list">
@@ -133,13 +163,6 @@ export function Sidebar({
             ))}
             <button className="dot-add" title="新建 dot(带个性头像的 agent 会话)" onClick={onNewDot}><IconPlus size={12} /></button>
           </div>
-        </div>
-        <button className="new-chat" onClick={onNewChat}>
-          <IconPlus size={14} /> New chat
-        </button>
-        <div className="sb-search">
-          <IconSearch size={13} style={{ color: "var(--faint)" }} />
-          <input placeholder="Search chats" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
 

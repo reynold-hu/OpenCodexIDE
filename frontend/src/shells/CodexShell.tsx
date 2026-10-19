@@ -61,6 +61,7 @@ export default function CodexShell() {
   const [dotFlight, setDotFlight] = useState<{ color: string } | null>(null);
   const [callOpen, setCallOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const conversationMode = (settings as any)?.conversationMode || "codex";
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
@@ -560,6 +561,9 @@ export default function CodexShell() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPaletteOpen((v) => !v);
+      } else if (e.altKey && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "u") {
+        e.preventDefault();
+        setActivityOpen((v) => !v);
       } else if (e.altKey && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "r") {
         e.preventDefault();
         if (thread) { const v = prompt("重命名对话：", thread.title); if (v) patchThread({ title: v }); }
@@ -653,6 +657,19 @@ export default function CodexShell() {
   }, [thread, patchThread, newChat]);
 
   const awaitingApprovalPre = blocks.some((b) => b.kind === "command" && (b as any).status === "awaiting_approval");
+  const activityItems = useMemo(() => {
+    const items: { kind: string; text: string }[] = [];
+    if (awaitingApprovalPre) items.push({ kind: "alert", text: "有待审批的命令" });
+    if (running) items.push({ kind: "info", text: "任务运行中…" });
+    for (const b of [...blocks].reverse()) {
+      if (b.kind === "file_change") items.push({ kind: "file", text: `已修改 ${(b as any).path}` });
+      if (items.length >= 6) break;
+    }
+    const last = [...blocks].reverse().find((b) => b.kind === "agent_message") as any;
+    if (last?.done) items.push({ kind: "done", text: "最近一轮已完成" });
+    if ((thread?.scheduled?.length ?? 0) > 0) items.push({ kind: "sched", text: `定时任务 ${thread!.scheduled!.length} 个` });
+    return items;
+  }, [blocks, running, awaitingApprovalPre, thread?.scheduled]);
   const [totalTokens, setTotalTokens] = useState(0);
   const machine = useMascotMachine({ hasThread: !!thread || blocks.length > 0, running, awaitingApproval: awaitingApprovalPre, tokenCount: totalTokens });
   machineRef.current = { notifyCompleted: machine.notifyCompleted, notifyCancelled: machine.notifyCancelled, notifyApproved: machine.notifyApproved };
@@ -733,6 +750,9 @@ export default function CodexShell() {
           onMode={(m) => saveSettings({ conversationMode: m } as any)}
           onNewDot={newDot}
           running={running}
+          activity={activityItems}
+          activityOpen={activityOpen}
+          onActivityToggle={() => setActivityOpen((v) => !v)}
           onRenameProject={async (p) => {
             const name = prompt("重命名项目:", p.name);
             if (!name) return;
@@ -941,7 +961,7 @@ export default function CodexShell() {
               }}
               projects={projects}
               onProject={(p) => { setProject(p); setRailView("chat"); }}
-              onRenameProject={async (p) => {
+          onRenameProject={async (p) => {
                 const name = prompt("重命名项目:", p.name);
                 if (!name) return;
                 const upd = await api.updateProject(p.id, name);

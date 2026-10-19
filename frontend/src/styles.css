@@ -1960,3 +1960,24 @@ pre.codeblock {
 .mt-status { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
 .mt-status .mt-badge { flex: 0 0 auto; }
 @media (max-width: 1100px) { .mt-status { display: none; } }
+
+/* ---------- sidebar header (Codex ⌄ · bell · search) ---------- */
+.sidebar { position: relative; }
+.sb-head-row { display: flex; align-items: center; gap: 3px; padding: 1px 6px 2px; }
+.surface-wrap { position: relative; }
+.surface-switch { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; color: var(--text); padding: 4px 7px; border-radius: 8px; }
+.surface-switch:hover { background: var(--hover); }
+.surface-switch svg { color: var(--faint); }
+.bell-btn { position: relative; }
+.bell-dot { position: absolute; top: 5px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-strong); }
+.sb-head-row .icon-btn.active, .icon-btn.active { background: var(--sel); color: var(--text); }
+.activity-pop { position: absolute; top: 42px; left: 10px; right: 10px; z-index: 70; background: var(--elev); border: 1px solid var(--border-strong); border-radius: 12px; box-shadow: var(--shadow); padding: 8px; animation: popIn .14s cubic-bezier(.22,.8,.36,1) both; transform-origin: top right; }
+.ap-title { display: flex; justify-content: space-between; align-items: center; font-size: 11px; letter-spacing: .6px; text-transform: uppercase; color: var(--faint); padding: 2px 4px 8px; }
+.ap-item { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 5px 4px; color: var(--muted); border-radius: 6px; }
+.ap-item:hover { background: var(--hover); color: var(--text); }
+.ap-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); flex: 0 0 6px; }
+.ap-dot.alert { background: #d9a520; }
+.ap-dot.file { background: #4a9eda; }
+.ap-dot.done { background: var(--green); }
+.ap-dot.sched { background: var(--accent); }
+.ap-empty { font-size: 12px; color: var(--faint); padding: 6px 4px; }
